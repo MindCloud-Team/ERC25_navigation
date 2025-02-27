@@ -237,6 +237,8 @@ def process_lidar_data(scan_data, filter_threshold=0.5):
 ```
 > **Note**: Only include sections that are relevant. If a function doesn't have ROS parameters, publishers, etc., those sections can be omitted. At a minimum, the docstring must include a brief summary.
 
+> **Note**: Only include sections that are relevant. If a function doesn't have ROS parameters, publishers, etc., those sections can be omitted. At a minimum, the docstring must include a brief summary.
+
 ## Example ROS2 Node with Complete Documentation
 
 ```python
@@ -393,6 +395,7 @@ if __name__ == '__main__':
     main()
 ```
 
+<<<<<<< HEAD
 ## Example TF Handler with Complete Documentation
 
 ```python
