@@ -51,7 +51,7 @@ git checkout devel
 git pull origin devel
 
 # Create and switch to a new task branch
-git checkout -b <your-branch>
+git checkout <your-branch>
 
 # Make your changes, then commit them
 git add .
@@ -108,19 +108,19 @@ DOCS: Update installation instructions
 
 Remember that good commit messages make it easier to track changes and understand the project history.
 
-# Python Code Style and Documentation Guidelines
+# Python and ROS2 Code Style and Documentation Guidelines
 
 ## Code Style
 
-We follow PEP 8 guidelines with some additional project-specific conventions. Consistent code style makes our codebase easier to read, maintain, and debug.
+We follow PEP 8 guidelines with some additional project-specific conventions as outlined in the Mind Cloud System Guidelines.
 
 ### Naming Conventions
 
-- **Classes**: Use `CamelCase` (e.g., `UserProfile`, `DatabaseManager`)
-- **Functions/Methods**: Use `snake_case` (e.g., `calculate_total`, `get_user_data`)
-- **Variables**: Use `snake_case` (e.g., `user_name`, `total_count`)
-- **Constants**: Use `UPPER_SNAKE_CASE` (e.g., `MAX_RETRY_COUNT`, `API_KEY`)
-- **Modules**: Use short, `lowercase` names (e.g., `utils.py`, `auth.py`)
+- **Classes**: Use `PascalCase` (e.g., `UserProfile`, `SensorManager`)
+- **Functions/Methods**: Use `snake_case` (e.g., `calculate_total`, `publish_data`)
+- **Variables**: Use `snake_case` (e.g., `user_name`, `lidar_data`)
+- **Constants**: Use `UPPER_SNAKE_CASE` (e.g., `MAX_RETRY_COUNT`, `TAX_RATE`)
+- **Modules**: Use short, `lowercase` names (e.g., `utils.py`, `perception.py`)
 - **Private attributes/methods**: Prefix with underscore (e.g., `_internal_method`, `_private_var`)
 
 ### Formatting
@@ -130,162 +130,287 @@ We follow PEP 8 guidelines with some additional project-specific conventions. Co
 - Add blank lines between logical sections of code (1 line)
 - Use spaces around operators (`x = 1 + 2`, not `x=1+2`)
 
-## Docstrings
+### Code Cleanliness
 
-All modules, classes, methods, and functions must include docstrings following the Google style format.
+- Keep functions short and focused on a single responsibility
+- Avoid deep nesting of loops and conditionals
+- Use proper indentation consistently
+- Follow the DRY principle (Don't Repeat Yourself)
+- Avoid hardcoded values; use constants or configuration files instead
+
+## Docstrings for Python and ROS2
+
+All modules, classes, methods, and functions must include docstrings following the format specified in the Mind Cloud System Guidelines.
 
 ### Module Docstrings
 
-Place at the top of the file, describing the module's purpose:
-
 ```python
 """
-This module provides authentication functionality for the application.
+Brief summary of the module.
 
-It includes user registration, login, password reset, and session management.
+Detailed description of the module and its functionality.
 """
 ```
 
 ### Class Docstrings
 
 ```python
-class UserManager:
-    """Handles user operations and management.
+class PerceptionNode:
+    """
+    Brief summary of the class.
     
-    This class provides methods for creating, retrieving, updating, 
-    and deleting user accounts, as well as handling authentication
-    and permissions.
+    Detailed description of the class and its behavior, if necessary.
     
     Attributes:
-        db_connection: Database connection object
-        cache_enabled (bool): Whether caching is enabled
+        attribute1 (type): Description of attribute1.
+        attribute2 (type): Description of attribute2.
+    
+    ROS Parameters:
+        ~param_name (type): Description of the ROS parameter.
+    
+    ROS Publishers:
+        /topic_name (msg_type): Description of the publisher topic.
+    
+    ROS Subscribers:
+        /topic_name (msg_type): Description of the subscriber topic.
+    
+    ROS Service Clients:
+        /service_name (srv_type): Description of the service client.
+    
+    ROS Service Servers:
+        /service_name (srv_type): Description of the service server.
+    
+    Examples:
+        Example usage of the class, if applicable.
     """
 ```
 
 ### Method and Function Docstrings
 
 ```python
-def calculate_tax(income, tax_rate=0.2):
-    """Calculate the tax amount based on income and tax rate.
+def process_lidar_data(scan_data, filter_threshold=0.5):
+    """
+    Brief summary of the function.
+    
+    Detailed description of the function and its behavior, if necessary.
     
     Args:
-        income (float): The total income amount
-        tax_rate (float, optional): The tax rate as a decimal. Defaults to 0.2.
-        
+        scan_data (sensor_msgs.msg.LaserScan): The raw lidar scan data.
+        filter_threshold (float): Threshold for filtering noise. Defaults to 0.5.
+    
     Returns:
-        float: The calculated tax amount
-        
+        numpy.ndarray: Processed point cloud data.
+    
     Raises:
-        ValueError: If income is negative
-        TypeError: If income or tax_rate is not a number
-        
+        ValueError: If scan_data is empty or invalid.
+    
+    ROS Parameters:
+        ~param_name (type): Description of the ROS parameter.
+    
+    ROS Publishers:
+        /topic_name (msg_type): Description of the publisher topic.
+    
+    ROS Subscribers:
+        /topic_name (msg_type): Description of the subscriber topic.
+    
+    ROS Service Clients:
+        /service_name (srv_type): Description of the service client.
+    
+    ROS Service Servers:
+        /service_name (srv_type): Description of the service server.
+    
     Examples:
-        >>> calculate_tax(50000)
-        10000.0
-        >>> calculate_tax(50000, 0.3)
-        15000.0
+        Example usage of the function, if applicable.
     """
 ```
 
-### Property Docstrings
+> **Note**: Only include sections that are relevant. If a function doesn't have ROS parameters, publishers, etc., those sections can be omitted. At a minimum, the docstring must include a brief summary.
+
+## Example ROS2 Node with Complete Documentation
 
 ```python
-@property
-def full_name(self):
-    """str: The user's full name combining first and last name."""
-    return f"{self.first_name} {self.last_name}"
-```
-
-## Example Class with Complete Documentation
-
-```python
+#!/usr/bin/env python3
 """
-User management module providing CRUD operations for user accounts.
+LiDAR perception module for obstacle detection.
 
-This module handles user data validation, storage, and retrieval.
+This module processes LiDAR data to detect obstacles in the rover's path
+and publishes the detected obstacles for use by the planning layer.
 """
 
-from datetime import datetime
-from typing import Optional, List, Dict, Any
+import rclpy
+from rclpy.node import Node
+from sensor_msgs.msg import LaserScan
+from geometry_msgs.msg import PointStamped
+import numpy as np
 
 
-class User:
-    """Represents a user in the system.
+class ObstacleDetectionNode(Node):
+    """
+    ROS2 node for detecting obstacles using LiDAR data.
     
-    This class manages user data including personal information,
-    authentication details, and user permissions.
+    This node subscribes to LaserScan messages, processes the data to
+    identify potential obstacles, and publishes the positions of detected
+    obstacles.
     
     Attributes:
-        username (str): Unique identifier for the user
-        email (str): User's email address
-        first_name (str): User's first name
-        last_name (str): User's last name
-        is_active (bool): Whether the user account is active
-        created_at (datetime): When the user was created
+        scan_sub (rclpy.subscription.Subscription): Subscription to LaserScan topic
+        obstacle_pub (rclpy.publisher.Publisher): Publisher for detected obstacles
+        min_distance (float): Minimum distance threshold for obstacle detection
+        max_distance (float): Maximum distance threshold for obstacle detection
+    
+    ROS Parameters:
+        ~min_distance (float): Minimum distance to consider for obstacles
+        ~max_distance (float): Maximum distance to consider for obstacles
+        ~detection_threshold (float): Threshold value for obstacle detection
+    
+    ROS Publishers:
+        /perception/obstacles (geometry_msgs/PointStamped): Publishes detected obstacle positions
+    
+    ROS Subscribers:
+        /scan (sensor_msgs/LaserScan): Subscribes to LiDAR scan data
     """
     
-    def __init__(self, username: str, email: str, 
-                 first_name: str = "", last_name: str = ""):
-        """Initialize a new User instance.
+    def __init__(self):
+        """
+        Initialize the ObstacleDetectionNode.
+        
+        Sets up ROS publishers, subscribers, and parameters.
+        """
+        super().__init__('obstacle_detection_node')
+        
+        # Declare and get parameters
+        self.declare_parameter('min_distance', 0.2)
+        self.declare_parameter('max_distance', 5.0)
+        self.declare_parameter('detection_threshold', 0.5)
+        
+        self.min_distance = self.get_parameter('min_distance').value
+        self.max_distance = self.get_parameter('max_distance').value
+        self.detection_threshold = self.get_parameter('detection_threshold').value
+        
+        # Create subscribers
+        self.scan_sub = self.create_subscription(
+            LaserScan,
+            '/scan',
+            self._scan_callback,
+            10
+        )
+        
+        # Create publishers
+        self.obstacle_pub = self.create_publisher(
+            PointStamped,
+            '/perception/obstacles',
+            10
+        )
+        
+        self.get_logger().info('Obstacle detection node initialized')
+    
+    def _scan_callback(self, msg):
+        """
+        Process incoming LiDAR scan messages and detect obstacles.
+        
+        This method identifies potential obstacles in the LiDAR scan data
+        and publishes their positions.
         
         Args:
-            username (str): Unique identifier for the user
-            email (str): User's email address
-            first_name (str, optional): User's first name. Defaults to empty string.
-            last_name (str, optional): User's last name. Defaults to empty string.
-        
-        Raises:
-            ValueError: If username or email is empty
+            msg (sensor_msgs.msg.LaserScan): The LiDAR scan message
         """
-        if not username or not email:
-            raise ValueError("Username and email are required")
+        obstacles = self._detect_obstacles(msg)
+        
+        for obstacle in obstacles:
+            point_msg = PointStamped()
+            point_msg.header = msg.header
+            point_msg.point.x = obstacle[0]
+            point_msg.point.y = obstacle[1]
+            point_msg.point.z = 0.0
             
-        self.username = username
-        self.email = email
-        self.first_name = first_name
-        self.last_name = last_name
-        self.is_active = True
-        self.created_at = datetime.now()
-        self._login_attempts = 0
+            self.obstacle_pub.publish(point_msg)
     
-    @property
-    def full_name(self) -> str:
-        """str: The user's full name combining first and last name."""
-        return f"{self.first_name} {self.last_name}".strip() or "No Name"
-    
-    def update_profile(self, **kwargs: Any) -> None:
-        """Update user profile information.
+    def _detect_obstacles(self, scan_msg):
+        """
+        Detect obstacles from LiDAR scan data.
         
         Args:
-            **kwargs: Arbitrary keyword arguments representing
-                      user attributes to update.
-                      
-        Examples:
-            >>> user.update_profile(first_name="John", last_name="Doe")
-        """
-        for key, value in kwargs.items():
-            if hasattr(self, key):
-                setattr(self, key, value)
-    
-    def deactivate(self) -> None:
-        """Deactivate this user account.
-        
-        This prevents the user from logging in but preserves their data.
-        """
-        self.is_active = False
-        
-    def reactivate(self) -> None:
-        """Reactivate a previously deactivated user account."""
-        self.is_active = True
-        
-    def __str__(self) -> str:
-        """Return string representation of user.
+            scan_msg (sensor_msgs.msg.LaserScan): The LiDAR scan message
         
         Returns:
-            str: User string with username and full name
+            list: List of (x, y) coordinates of detected obstacles
         """
-        return f"User({self.username}: {self.full_name})"
+        obstacles = []
+        angle = scan_msg.angle_min
+        
+        for i, distance in enumerate(scan_msg.ranges):
+            # Skip invalid measurements and those outside our distance thresholds
+            if (distance < self.min_distance or 
+                distance > self.max_distance or 
+                not np.isfinite(distance)):
+                angle += scan_msg.angle_increment
+                continue
+            
+            # Convert polar to cartesian coordinates
+            x = distance * np.cos(angle)
+            y = distance * np.sin(angle)
+            
+            # Apply detection threshold
+            if distance < self.detection_threshold:
+                obstacles.append((x, y))
+            
+            angle += scan_msg.angle_increment
+        
+        return obstacles
+
+
+def main(args=None):
+    """
+    Main entry point for the obstacle detection node.
+    
+    Args:
+        args: Command-line arguments
+    """
+    rclpy.init(args=args)
+    node = ObstacleDetectionNode()
+    
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+if __name__ == '__main__':
+    main()
 ```
+
+## ROS2-Specific Documentation Best Practices
+
+1. **Node Documentation**: Clearly document the purpose of the node and its role within the system architecture (Perception, Planning, Control, etc.).
+
+2. **Topic Documentation**: For publishers and subscribers, document:
+   - Topic name
+   - Message type
+   - Purpose of the data
+   - Frequency of publishing (if relevant)
+
+3. **Parameter Documentation**: Document all parameters:
+   - Parameter name
+   - Data type
+   - Default value
+   - Valid ranges
+   - Purpose of the parameter
+
+4. **Service Documentation**: For services, document:
+   - Service name
+   - Service type
+   - Expected input
+   - Expected output
+   - Error handling
+
+5. **Action Documentation**: For ROS2 actions, document:
+   - Action name
+   - Action type
+   - Goal, feedback, and result information
+   - Timeout behavior
 
 ## Code Review Checklist
 
@@ -293,9 +418,10 @@ Before submitting a pull request, ensure your code meets these requirements:
 
 - ✅ Code follows the style guidelines
 - ✅ All functions, classes, and methods have appropriate docstrings
+- ✅ ROS2 topics, services, and parameters are properly documented
 - ✅ Type hints are used where appropriate
-- ✅ Tests are included for new functionality
 - ✅ No unnecessary commented-out code
 - ✅ No debugging print statements
 - ✅ Error handling is appropriate and specific
 - ✅ Variable names are clear and descriptive
+- ✅ Code is properly structured according to the PPC (Perception-Planning-Control) architecture
