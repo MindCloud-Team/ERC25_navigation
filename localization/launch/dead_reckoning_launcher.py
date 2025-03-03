@@ -12,9 +12,10 @@ def generate_launch_description():
                 'rate': 50,
                 'wheel_diameter': 0.12,
                 'ticks_per_rev': 600,
+                'base_width': 0.6,
                 'frame_id': 'odom',
                 'child_frame_id': 'base_link'
-                }
+            }
             ]
         )
     ])

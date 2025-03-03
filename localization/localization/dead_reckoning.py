@@ -25,13 +25,13 @@ class LocalizationImuEncoder(Node):
     topic),  publishs Odometry message to /odom and broadcasts Transforms
 
     Attributes:
+        ~rate (int): Proccessing rate in Hz
         imu_sub (Subscriber): Subscribes to IMU data
         l_encoder_sub (Subscriber): Subscribes to "DELTA TICKS" of the left wheel
         r_encoder_sub (Subscriber): Subscribes to "DELTA TICKS" of the right wheel
         odom_pub (Publisher): Publisher Odometry Data
         tf_broadcaster (Broadcaster): Broadcasts Transforms
         base_width (float): distance between wheels in cm
-        wheel_circumference (float): wheel circumference in cm
         distance_per_tick (float): distance moved per one tick of the encoder
         tf_msg (TransformStamped): broadcasted transforms
         odom_msg (Odometry): Published message to Odom
@@ -48,10 +48,11 @@ class LocalizationImuEncoder(Node):
     ROS Parameters:
         ~rate (int): Proccessing rate in Hz
         ~wheel_diameter (float): Wheel diameter in cm
+        ~base_width (float): distance between wheels in cm
         ~frame_id (string): main frame id
         ~child_frame_id (string): rover's frame id
         ~ticks_per_rev (int): Number of ticks per One Revolution of the motor
-        
+
     ROS Subscriber:
         /imu (sensor_msgs/Imu)
         /left_wheel_encoder (std_msgs/Int16)
@@ -63,33 +64,31 @@ class LocalizationImuEncoder(Node):
     ROS Broadcasters:
         /odom -> base_link (geometry_msgs/TransformStamped)
     """
+
     def __init__(self):
         """
         Initialize the LocalizationImuEncoder.
-        
+
         Sets up ROS publishers, subscribers.
         """
         super().__init__("localization_imu_encoder")
 
         # Declare Parameters
-        # self.rate = 50
-        # wheel_diameter = 0.12 # Modify according to wheel's diameter
-        # ticks_per_rev = 600
         self.declare_parameter("rate", 50)
         self.declare_parameter("wheel_diameter", 0.12)
         self.declare_parameter("ticks_per_rev", 600)
         self.declare_parameter("frame_id", "odom")
         self.declare_parameter("child_frame_id", "base_link")
+        self.declare_parameter("base_width", 0.60)
 
         # Get Parameters
         self.rate = self.get_parameter("rate").value
+        self.base_width = self.get_parameter("base_width").vale
         wheel_diameter = self.get_parameter("wheel_diameter").value
         ticks_per_rev = self.get_parameter("ticks_per_rev").value
-        
+
         # Set Variables
-        self.base_width = 0.60 # Modify according to real distance bet. wheels
-        wheel_circumference = pi * wheel_diameter
-        self.distance_per_tick = wheel_circumference / ticks_per_rev
+        self.distance_per_tick = (pi * wheel_diameter) / ticks_per_rev
         self.tf_msg = TransformStamped()
         self.odom_msg = Odometry()
         self.yaw = 0.0
@@ -108,8 +107,8 @@ class LocalizationImuEncoder(Node):
             "/imu",
             self._imu_callback,
             10
-            )
-        
+        )
+
         self.l_encoder_sub = self.create_subscription(
             Int16,
             "/left_wheel_encoder",
@@ -134,7 +133,6 @@ class LocalizationImuEncoder(Node):
         # Create Broadcaster
         self.tf_broadcaster = TransformBroadcaster(self)
 
-
     def _update(self):
         """
         Main Function which processes the data and locate the robot
@@ -146,18 +144,17 @@ class LocalizationImuEncoder(Node):
         l_distance = self.left_wheel_ticks * self.distance_per_tick
         r_distance = self.right_wheel_ticks * self.distance_per_tick
         self.distance = (l_distance + r_distance) / 2
-        
+
         # Estimate Position and Orientation
         self.x += self.distance * cos(self.theta_both)
         self.y += self.distance * sin(self.theta_both)
         theta_enc = self.theta_both + ((l_distance - r_distance) / self.base_width)
         theta_imu = self.theta_both + self.yaw * self.dt
-        self.theta_both = (theta_enc + theta_imu) / 2 # Basic Sensor Fusion for now
-        
+        self.theta_both = (theta_enc + theta_imu) / 2  # Basic Sensor Fusion for now
+
         # Publish and Broadcast messages
         self._create_odom_msg()
         self._create_tf_msg()
-
 
     def _create_tf_msg(self):
         """
@@ -182,14 +179,13 @@ class LocalizationImuEncoder(Node):
         # Broadcast
         self.tf_broadcaster.sendTransform(self.tf_msg)
 
-
     def _create_odom_msg(self):
         """
         Creates the Odometry message and publishs to /odom
         """
         # Transform from euler to quaternion
         qx, qy, qz, qw = euler2quat(0, 0, self.theta_both)
-        
+
         self.odom_msg.header.frame_id = self.get_parameter("frame_id").value
         self.odom_msg.header.stamp = self.get_clock().now().to_msg()
 
@@ -213,32 +209,31 @@ class LocalizationImuEncoder(Node):
 
         # Publish
         self.odom_pub.publish(self.odom_msg)
-        
 
-    def _imu_callback(self, msg:Imu):
+    def _imu_callback(self, msg: Imu):
         """
         Stores the yaw from the IMU
 
         Args:
-        msg (sensor_msgs/Imu)
+            msg (sensor_msgs/Imu)
         """
         self.yaw = msg.angular_velocity.z
 
-    def _right_wheel_callback(self, msg:Int16):
+    def _right_wheel_callback(self, msg: Int16):
         """
         Stores the ticks from the encoder
 
         Args:
-        msg (sts_msgs/Int16)
+            msg (sts_msgs/Int16)
         """
         self.right_wheel_ticks = msg.data
 
-    def _left_wheel_callback(self, msg:Int16):
+    def _left_wheel_callback(self, msg: Int16):
         """
         Stores the ticks from the encoder
 
         Args:
-        msg (sts_msgs/Int16)
+            msg (sts_msgs/Int16)
         """
         self.left_wheel_ticks = msg.data
 
@@ -246,7 +241,6 @@ class LocalizationImuEncoder(Node):
 def main(args=None):
     """
     Main entry point for the localization node.
-
     """
     rclpy.init(args=args)
     node = LocalizationImuEncoder()
