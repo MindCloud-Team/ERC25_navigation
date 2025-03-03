@@ -30,13 +30,8 @@ class LocalizationImuEncoder(Node):
         r_encoder_sub (Subscriber): Subscribes to "DELTA TICKS" of the right wheel
         odom_pub (Publisher): Publisher Odometry Data
         tf_broadcaster (Broadcaster): Broadcasts Transforms
-
-    ROS Parameters:
-        rate (int): Proccessing rate in Hz
-        wheel_diameter (float): Wheel diameter in cm
-        wheel_circumference (float): wheel circumference in cm
-        ticks_per_rev (int): Number of ticks per One Revolution of the motor
         base_width (float): distance between wheels in cm
+        wheel_circumference (float): wheel circumference in cm
         distance_per_tick (float): distance moved per one tick of the encoder
         tf_msg (TransformStamped): broadcasted transforms
         odom_msg (Odometry): Published message to Odom
@@ -50,6 +45,13 @@ class LocalizationImuEncoder(Node):
         self.dt (float): Time Period
         main_timer (timer): loops the update function with rate = self.rate
 
+    ROS Parameters:
+        ~rate (int): Proccessing rate in Hz
+        ~wheel_diameter (float): Wheel diameter in cm
+        ~frame_id (string): main frame id
+        ~child_frame_id (string): rover's frame id
+        ~ticks_per_rev (int): Number of ticks per One Revolution of the motor
+        
     ROS Subscriber:
         /imu (sensor_msgs/Imu)
         /left_wheel_encoder (std_msgs/Int16)
@@ -70,11 +72,23 @@ class LocalizationImuEncoder(Node):
         super().__init__("localization_imu_encoder")
 
         # Declare Parameters
-        self.rate = 50
-        wheel_diameter = 0.12 # Modify according to wheel's diameter
-        wheel_circumference = pi * wheel_diameter
-        ticks_per_rev = 600
+        # self.rate = 50
+        # wheel_diameter = 0.12 # Modify according to wheel's diameter
+        # ticks_per_rev = 600
+        self.declare_parameter("rate", 50)
+        self.declare_parameter("wheel_diameter", 0.12)
+        self.declare_parameter("ticks_per_rev", 600)
+        self.declare_parameter("frame_id", "odom")
+        self.declare_parameter("child_frame_id", "base_link")
+
+        # Get Parameters
+        self.rate = self.get_parameter("rate").value
+        wheel_diameter = self.get_parameter("wheel_diameter").value
+        ticks_per_rev = self.get_parameter("ticks_per_rev").value
+        
+        # Set Variables
         self.base_width = 0.60 # Modify according to real distance bet. wheels
+        wheel_circumference = pi * wheel_diameter
         self.distance_per_tick = wheel_circumference / ticks_per_rev
         self.tf_msg = TransformStamped()
         self.odom_msg = Odometry()
@@ -150,8 +164,8 @@ class LocalizationImuEncoder(Node):
         Creates the transform message and broadcasts
         """
         self.tf_msg.header.stamp = self.get_clock().now().to_msg()
-        self.tf_msg.header.frame_id = "odom"
-        self.tf_msg.child_frame_id = "base_link"
+        self.tf_msg.header.frame_id = self.get_parameter("frame_id").value
+        self.tf_msg.child_frame_id = self.get_parameter("child_frame_id").value
 
         # Set position
         self.tf_msg.transform.translation.x = self.x
@@ -176,7 +190,7 @@ class LocalizationImuEncoder(Node):
         # Transform from euler to quaternion
         qx, qy, qz, qw = euler2quat(0, 0, self.theta_both)
         
-        self.odom_msg.header.frame_id = "odom"
+        self.odom_msg.header.frame_id = self.get_parameter("frame_id").value
         self.odom_msg.header.stamp = self.get_clock().now().to_msg()
 
         # Set position
@@ -190,7 +204,7 @@ class LocalizationImuEncoder(Node):
         self.odom_msg.pose.pose.orientation.w = qw
         self.odom_msg.pose.pose.orientation.z = qz
 
-        self.odom_msg.child_frame_id = "base_link"
+        self.odom_msg.child_frame_id = self.get_parameter("child_frame_id").value
 
         # Set velocity
         self.odom_msg.twist.twist.linear.x = self.distance / self.dt
@@ -200,7 +214,6 @@ class LocalizationImuEncoder(Node):
         # Publish
         self.odom_pub.publish(self.odom_msg)
         
-
 
     def _imu_callback(self, msg:Imu):
         """
