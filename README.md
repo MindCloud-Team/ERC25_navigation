@@ -180,6 +180,12 @@ class PerceptionNode:
     ROS Service Servers:
         /service_name (srv_type): Description of the service server.
     
+    TF Broadcasts:
+        parent_frame → child_frame: Description of the transform being broadcast.
+    
+    TF Lookups:
+        source_frame → target_frame: Description of the transform being looked up.
+    
     Examples:
         Example usage of the class, if applicable.
     """
@@ -219,11 +225,16 @@ def process_lidar_data(scan_data, filter_threshold=0.5):
     ROS Service Servers:
         /service_name (srv_type): Description of the service server.
     
+    TF Broadcasts:
+        parent_frame → child_frame: Description of the transform being broadcast.
+    
+    TF Lookups:
+        source_frame → target_frame: Description of the transform being looked up.
+    
     Examples:
         Example usage of the function, if applicable.
     """
 ```
-
 > **Note**: Only include sections that are relevant. If a function doesn't have ROS parameters, publishers, etc., those sections can be omitted. At a minimum, the docstring must include a brief summary.
 
 ## Example ROS2 Node with Complete Documentation
@@ -382,6 +393,170 @@ if __name__ == '__main__':
     main()
 ```
 
+## Example TF Handler with Complete Documentation
+
+```python
+#!/usr/bin/env python3
+"""
+TF handler module for transform management.
+
+This module provides functionality to broadcast and lookup transforms
+between different coordinate frames in the robot system.
+"""
+
+import rclpy
+from rclpy.node import Node
+import tf2_ros
+from geometry_msgs.msg import TransformStamped
+from nav_msgs.msg import Odometry
+import tf_transformations
+
+
+class TFHandlerNode(Node):
+    """
+    ROS2 node for handling transform operations.
+    
+    This node provides functionality for publishing transforms based on
+    odometry data and looking up transforms between frames for sensor fusion.
+    
+    Attributes:
+        tf_buffer (tf2_ros.Buffer): Buffer for storing and accessing transforms
+        tf_listener (tf2_ros.TransformListener): Listener for receiving transforms
+        tf_broadcaster (tf2_ros.TransformBroadcaster): Broadcaster for sending transforms
+        odom_sub (rclpy.subscription.Subscription): Subscription to odometry topic
+    
+    ROS Subscribers:
+        /odom (nav_msgs/Odometry): Subscribes to odometry data
+    
+    TF Broadcasts:
+        odom → base_link: Transform representing robot pose in odometry frame
+        base_link → sensor_frames: Static transforms from robot base to sensors
+    
+    TF Lookups:
+        map → odom: Transform for localization correction
+        base_link → sensor_frames: Transforms for sensor data processing
+    """
+    
+    def __init__(self):
+        """
+        Initialize the TFHandlerNode.
+        
+        Sets up TF buffer, listener, broadcaster, and subscribers.
+        """
+        super().__init__('tf_handler_node')
+        
+        # TF setup
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
+        self.tf_broadcaster = tf2_ros.TransformBroadcaster(self)
+        
+        # Subscribe to odometry
+        self.odom_sub = self.create_subscription(
+            Odometry,
+            '/odom',
+            self._odom_callback,
+            10
+        )
+        
+        self.get_logger().info('TF handler node initialized')
+    
+    def _odom_callback(self, msg):
+        """
+        Process odometry messages and broadcast as transforms.
+        
+        Args:
+            msg (nav_msgs.msg.Odometry): The odometry message
+        
+        TF Broadcasts:
+            odom → base_link: Transform from odometry frame to robot base
+        """
+        transform = self._odometry_to_transform(msg)
+        self.tf_broadcaster.sendTransform(transform)
+    
+    def _odometry_to_transform(self, odom_msg):
+        """
+        Convert odometry message to transform.
+        
+        Args:
+            odom_msg (nav_msgs.msg.Odometry): The odometry message
+        
+        Returns:
+            geometry_msgs.msg.TransformStamped: The corresponding transform
+        
+        TF Broadcasts:
+            odom → base_link: Transform representing robot pose
+        """
+        transform = TransformStamped()
+        
+        # Set header information
+        transform.header = odom_msg.header
+        
+        # Set frame IDs
+        transform.child_frame_id = odom_msg.child_frame_id
+        
+        # Set transform data from odometry pose
+        transform.transform.translation.x = odom_msg.pose.pose.position.x
+        transform.transform.translation.y = odom_msg.pose.pose.position.y
+        transform.transform.translation.z = odom_msg.pose.pose.position.z
+        transform.transform.rotation = odom_msg.pose.pose.orientation
+        
+        return transform
+    
+    def lookup_transform(self, target_frame, source_frame, time=None):
+        """
+        Look up transform between two frames.
+        
+        Args:
+            target_frame (str): Target frame ID
+            source_frame (str): Source frame ID
+            time (rclpy.time.Time): Time at which to look up transform
+        
+        Returns:
+            geometry_msgs.msg.TransformStamped: The transform
+        
+        Raises:
+            tf2_ros.LookupException: If the transform is not available
+            tf2_ros.ExtrapolationException: If transform requested is outside buffer time
+        
+        TF Lookups:
+            source_frame → target_frame: Transform between specified frames
+        """
+        try:
+            # Get the transform
+            return self.tf_buffer.lookup_transform(
+                target_frame,
+                source_frame,
+                time if time else rclpy.time.Time()
+            )
+        except (tf2_ros.LookupException, tf2_ros.ExtrapolationException) as e:
+            self.get_logger().error(f'Failed to lookup transform: {e}')
+            raise
+
+
+def main(args=None):
+    """
+    Main entry point for the TF handler node.
+    
+    Args:
+        args: Command-line arguments
+    """
+    rclpy.init(args=args)
+    node = TFHandlerNode()
+    
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+if __name__ == '__main__':
+    main()
+```
+
+
 ## ROS2-Specific Documentation Best Practices
 
 1. **Node Documentation**: Clearly document the purpose of the node and its role within the system architecture (Perception, Planning, Control, etc.).
@@ -411,6 +586,19 @@ if __name__ == '__main__':
    - Action type
    - Goal, feedback, and result information
    - Timeout behavior
+
+6. **TF Documentation**: For transform operations, document:
+   - **For TF Broadcasts**:
+     - Parent frame ID
+     - Child frame ID
+     - What the transform represents (e.g., robot pose, sensor position)
+     - Broadcast frequency (if relevant)
+     - Any assumptions or constraints
+
+   - **For TF Lookups**:
+     - Source frame ID
+     - Target frame ID
+     - Purpose of the transform lookup
 
 ## Code Review Checklist
 
