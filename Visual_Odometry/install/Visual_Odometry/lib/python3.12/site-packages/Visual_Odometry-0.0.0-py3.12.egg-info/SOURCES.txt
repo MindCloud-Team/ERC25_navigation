@@ -1,0 +1,14 @@
+package.xml
+setup.cfg
+setup.py
+../build/Visual_Odometry/Visual_Odometry.egg-info/PKG-INFO
+../build/Visual_Odometry/Visual_Odometry.egg-info/SOURCES.txt
+../build/Visual_Odometry/Visual_Odometry.egg-info/dependency_links.txt
+../build/Visual_Odometry/Visual_Odometry.egg-info/requires.txt
+../build/Visual_Odometry/Visual_Odometry.egg-info/top_level.txt
+../build/Visual_Odometry/Visual_Odometry.egg-info/zip-safe
+Visual_Odometry/__init__.py
+resource/Visual_Odometry
+test/test_copyright.py
+test/test_flake8.py
+test/test_pep257.py

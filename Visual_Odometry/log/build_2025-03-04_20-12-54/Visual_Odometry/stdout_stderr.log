@@ -1,0 +1,30 @@
+running egg_info
+creating ../build/Visual_Odometry/Visual_Odometry.egg-info
+writing ../build/Visual_Odometry/Visual_Odometry.egg-info/PKG-INFO
+writing dependency_links to ../build/Visual_Odometry/Visual_Odometry.egg-info/dependency_links.txt
+writing requirements to ../build/Visual_Odometry/Visual_Odometry.egg-info/requires.txt
+writing top-level names to ../build/Visual_Odometry/Visual_Odometry.egg-info/top_level.txt
+writing manifest file '../build/Visual_Odometry/Visual_Odometry.egg-info/SOURCES.txt'
+reading manifest file '../build/Visual_Odometry/Visual_Odometry.egg-info/SOURCES.txt'
+writing manifest file '../build/Visual_Odometry/Visual_Odometry.egg-info/SOURCES.txt'
+running build
+running build_py
+creating /home/ibrahim/ros2_ws/src/Visual_Odometry/build/Visual_Odometry/build
+creating /home/ibrahim/ros2_ws/src/Visual_Odometry/build/Visual_Odometry/build/lib
+creating /home/ibrahim/ros2_ws/src/Visual_Odometry/build/Visual_Odometry/build/lib/Visual_Odometry
+copying Visual_Odometry/__init__.py -> /home/ibrahim/ros2_ws/src/Visual_Odometry/build/Visual_Odometry/build/lib/Visual_Odometry
+running install
+running install_lib
+creating /home/ibrahim/ros2_ws/src/Visual_Odometry/install/Visual_Odometry/lib/python3.12/site-packages/Visual_Odometry
+copying /home/ibrahim/ros2_ws/src/Visual_Odometry/build/Visual_Odometry/build/lib/Visual_Odometry/__init__.py -> /home/ibrahim/ros2_ws/src/Visual_Odometry/install/Visual_Odometry/lib/python3.12/site-packages/Visual_Odometry
+byte-compiling /home/ibrahim/ros2_ws/src/Visual_Odometry/install/Visual_Odometry/lib/python3.12/site-packages/Visual_Odometry/__init__.py to __init__.cpython-312.pyc
+running install_data
+creating /home/ibrahim/ros2_ws/src/Visual_Odometry/install/Visual_Odometry/share/ament_index
+creating /home/ibrahim/ros2_ws/src/Visual_Odometry/install/Visual_Odometry/share/ament_index/resource_index
+creating /home/ibrahim/ros2_ws/src/Visual_Odometry/install/Visual_Odometry/share/ament_index/resource_index/packages
+copying resource/Visual_Odometry -> /home/ibrahim/ros2_ws/src/Visual_Odometry/install/Visual_Odometry/share/ament_index/resource_index/packages
+copying package.xml -> /home/ibrahim/ros2_ws/src/Visual_Odometry/install/Visual_Odometry/share/Visual_Odometry
+running install_egg_info
+Copying ../build/Visual_Odometry/Visual_Odometry.egg-info to /home/ibrahim/ros2_ws/src/Visual_Odometry/install/Visual_Odometry/lib/python3.12/site-packages/Visual_Odometry-0.0.0-py3.12.egg-info
+running install_scripts
+writing list of installed files to '/home/ibrahim/ros2_ws/src/Visual_Odometry/build/Visual_Odometry/install.log'

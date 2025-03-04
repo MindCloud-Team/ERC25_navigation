@@ -1,0 +1,100 @@
+[0.136s] DEBUG:colcon:Command line arguments: ['/usr/bin/colcon', 'build']
+[0.136s] DEBUG:colcon:Parsed command line arguments: Namespace(log_base=None, log_level=None, verb_name='build', build_base='build', install_base='install', merge_install=False, symlink_install=False, test_result_base=None, continue_on_error=False, executor='parallel', parallel_workers=4, event_handlers=None, ignore_user_meta=False, metas=['./colcon.meta'], base_paths=['.'], packages_ignore=None, packages_ignore_regex=None, paths=None, packages_up_to=None, packages_up_to_regex=None, packages_above=None, packages_above_and_dependencies=None, packages_above_depth=None, packages_select_by_dep=None, packages_skip_by_dep=None, packages_skip_up_to=None, packages_select_build_failed=False, packages_skip_build_finished=False, packages_select_test_failures=False, packages_skip_test_passed=False, packages_select=None, packages_skip=None, packages_select_regex=None, packages_skip_regex=None, packages_start=None, packages_end=None, cmake_args=None, cmake_target=None, cmake_target_skip_unavailable=False, cmake_clean_cache=False, cmake_clean_first=False, cmake_force_configure=False, ament_cmake_args=None, catkin_cmake_args=None, catkin_skip_building_tests=False, verb_parser=<colcon_defaults.argument_parser.defaults.DefaultArgumentsDecorator object at 0x755ae93efbf0>, verb_extension=<colcon_core.verb.build.BuildVerb object at 0x755ae938f080>, main=<bound method BuildVerb.main of <colcon_core.verb.build.BuildVerb object at 0x755ae938f080>>)
+[0.189s] Level 1:colcon.colcon_core.package_discovery:discover_packages(colcon_meta) check parameters
+[0.189s] Level 1:colcon.colcon_core.package_discovery:discover_packages(recursive) check parameters
+[0.189s] Level 1:colcon.colcon_core.package_discovery:discover_packages(ignore) check parameters
+[0.189s] Level 1:colcon.colcon_core.package_discovery:discover_packages(path) check parameters
+[0.189s] Level 1:colcon.colcon_core.package_discovery:discover_packages(colcon_meta) discover
+[0.189s] Level 1:colcon.colcon_core.package_discovery:discover_packages(recursive) discover
+[0.189s] INFO:colcon.colcon_core.package_discovery:Crawling recursively for packages in '/home/ibrahim/ros2_ws/src/Visual_Odometry'
+[0.189s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['ignore', 'ignore_ament_install']
+[0.189s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'ignore'
+[0.189s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'ignore_ament_install'
+[0.189s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['colcon_pkg']
+[0.189s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'colcon_pkg'
+[0.190s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['colcon_meta']
+[0.190s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'colcon_meta'
+[0.190s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['ros']
+[0.190s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'ros'
+[0.222s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['cmake', 'python']
+[0.222s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'cmake'
+[0.222s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'python'
+[0.223s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['python_setup_py']
+[0.223s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'python_setup_py'
+[0.223s] Level 1:colcon.colcon_core.package_identification:_identify(Visual_Odometry) by extensions ['ignore', 'ignore_ament_install']
+[0.223s] Level 1:colcon.colcon_core.package_identification:_identify(Visual_Odometry) by extension 'ignore'
+[0.223s] Level 1:colcon.colcon_core.package_identification:_identify(Visual_Odometry) by extension 'ignore_ament_install'
+[0.223s] Level 1:colcon.colcon_core.package_identification:_identify(Visual_Odometry) by extensions ['colcon_pkg']
+[0.223s] Level 1:colcon.colcon_core.package_identification:_identify(Visual_Odometry) by extension 'colcon_pkg'
+[0.223s] Level 1:colcon.colcon_core.package_identification:_identify(Visual_Odometry) by extensions ['colcon_meta']
+[0.223s] Level 1:colcon.colcon_core.package_identification:_identify(Visual_Odometry) by extension 'colcon_meta'
+[0.223s] Level 1:colcon.colcon_core.package_identification:_identify(Visual_Odometry) by extensions ['ros']
+[0.223s] Level 1:colcon.colcon_core.package_identification:_identify(Visual_Odometry) by extension 'ros'
+[0.226s] DEBUG:colcon.colcon_core.package_identification:Package 'Visual_Odometry' with type 'ros.ament_python' and name 'Visual_Odometry'
+[0.226s] Level 1:colcon.colcon_core.package_identification:_identify(build) by extensions ['ignore', 'ignore_ament_install']
+[0.226s] Level 1:colcon.colcon_core.package_identification:_identify(build) by extension 'ignore'
+[0.227s] Level 1:colcon.colcon_core.package_identification:_identify(build) ignored
+[0.227s] Level 1:colcon.colcon_core.package_identification:_identify(install) by extensions ['ignore', 'ignore_ament_install']
+[0.227s] Level 1:colcon.colcon_core.package_identification:_identify(install) by extension 'ignore'
+[0.227s] Level 1:colcon.colcon_core.package_identification:_identify(install) ignored
+[0.227s] Level 1:colcon.colcon_core.package_identification:_identify(log) by extensions ['ignore', 'ignore_ament_install']
+[0.227s] Level 1:colcon.colcon_core.package_identification:_identify(log) by extension 'ignore'
+[0.227s] Level 1:colcon.colcon_core.package_identification:_identify(log) ignored
+[0.227s] Level 1:colcon.colcon_core.package_discovery:discover_packages(recursive) using defaults
+[0.227s] Level 1:colcon.colcon_core.package_discovery:discover_packages(ignore) discover
+[0.227s] Level 1:colcon.colcon_core.package_discovery:discover_packages(ignore) using defaults
+[0.227s] Level 1:colcon.colcon_core.package_discovery:discover_packages(path) discover
+[0.227s] Level 1:colcon.colcon_core.package_discovery:discover_packages(path) using defaults
+[0.256s] Level 5:colcon.colcon_core.verb:set package 'Visual_Odometry' build argument 'cmake_args' from command line to 'None'
+[0.256s] Level 5:colcon.colcon_core.verb:set package 'Visual_Odometry' build argument 'cmake_target' from command line to 'None'
+[0.256s] Level 5:colcon.colcon_core.verb:set package 'Visual_Odometry' build argument 'cmake_target_skip_unavailable' from command line to 'False'
+[0.256s] Level 5:colcon.colcon_core.verb:set package 'Visual_Odometry' build argument 'cmake_clean_cache' from command line to 'False'
+[0.256s] Level 5:colcon.colcon_core.verb:set package 'Visual_Odometry' build argument 'cmake_clean_first' from command line to 'False'
+[0.256s] Level 5:colcon.colcon_core.verb:set package 'Visual_Odometry' build argument 'cmake_force_configure' from command line to 'False'
+[0.256s] Level 5:colcon.colcon_core.verb:set package 'Visual_Odometry' build argument 'ament_cmake_args' from command line to 'None'
+[0.256s] Level 5:colcon.colcon_core.verb:set package 'Visual_Odometry' build argument 'catkin_cmake_args' from command line to 'None'
+[0.256s] Level 5:colcon.colcon_core.verb:set package 'Visual_Odometry' build argument 'catkin_skip_building_tests' from command line to 'False'
+[0.256s] DEBUG:colcon.colcon_core.verb:Building package 'Visual_Odometry' with the following arguments: {'ament_cmake_args': None, 'build_base': '/home/ibrahim/ros2_ws/src/Visual_Odometry/build/Visual_Odometry', 'catkin_cmake_args': None, 'catkin_skip_building_tests': False, 'cmake_args': None, 'cmake_clean_cache': False, 'cmake_clean_first': False, 'cmake_force_configure': False, 'cmake_target': None, 'cmake_target_skip_unavailable': False, 'install_base': '/home/ibrahim/ros2_ws/src/Visual_Odometry/install/Visual_Odometry', 'merge_install': False, 'path': '/home/ibrahim/ros2_ws/src/Visual_Odometry/Visual_Odometry', 'symlink_install': False, 'test_result_base': None}
+[0.256s] INFO:colcon.colcon_core.executor:Executing jobs using 'parallel' executor
+[0.257s] DEBUG:colcon.colcon_parallel_executor.executor.parallel:run_until_complete
+[0.258s] INFO:colcon.colcon_ros.task.ament_python.build:Building ROS package in '/home/ibrahim/ros2_ws/src/Visual_Odometry/Visual_Odometry' with build type 'ament_python'
+[0.258s] Level 1:colcon.colcon_core.shell:create_environment_hook('Visual_Odometry', 'ament_prefix_path')
+[0.260s] INFO:colcon.colcon_core.plugin_system:Skipping extension 'colcon_core.shell.bat': Not used on non-Windows systems
+[0.260s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/home/ibrahim/ros2_ws/src/Visual_Odometry/install/Visual_Odometry/share/Visual_Odometry/hook/ament_prefix_path.dsv'
+[0.261s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/ibrahim/ros2_ws/src/Visual_Odometry/install/Visual_Odometry/share/Visual_Odometry/hook/ament_prefix_path.sh'
+[0.262s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[0.596s] INFO:colcon.colcon_core.task.python.build:Building Python package in '/home/ibrahim/ros2_ws/src/Visual_Odometry/Visual_Odometry'
+[0.597s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[1.438s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoking command in '/home/ibrahim/ros2_ws/src/Visual_Odometry/Visual_Odometry': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/ibrahim/ros2_ws/src/Visual_Odometry/build/Visual_Odometry/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/ibrahim/ros2_ws/src/Visual_Odometry/install/Visual_Odometry/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../build/Visual_Odometry build --build-base /home/ibrahim/ros2_ws/src/Visual_Odometry/build/Visual_Odometry/build install --record /home/ibrahim/ros2_ws/src/Visual_Odometry/build/Visual_Odometry/install.log --single-version-externally-managed install_data
+[2.216s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoked command in '/home/ibrahim/ros2_ws/src/Visual_Odometry/Visual_Odometry' returned '0': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/ibrahim/ros2_ws/src/Visual_Odometry/build/Visual_Odometry/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/ibrahim/ros2_ws/src/Visual_Odometry/install/Visual_Odometry/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../build/Visual_Odometry build --build-base /home/ibrahim/ros2_ws/src/Visual_Odometry/build/Visual_Odometry/build install --record /home/ibrahim/ros2_ws/src/Visual_Odometry/build/Visual_Odometry/install.log --single-version-externally-managed install_data
+[2.218s] Level 1:colcon.colcon_core.environment:checking '/home/ibrahim/ros2_ws/src/Visual_Odometry/install/Visual_Odometry' for CMake module files
+[2.219s] Level 1:colcon.colcon_core.environment:checking '/home/ibrahim/ros2_ws/src/Visual_Odometry/install/Visual_Odometry' for CMake config files
+[2.220s] Level 1:colcon.colcon_core.environment:checking '/home/ibrahim/ros2_ws/src/Visual_Odometry/install/Visual_Odometry/lib'
+[2.220s] Level 1:colcon.colcon_core.environment:checking '/home/ibrahim/ros2_ws/src/Visual_Odometry/install/Visual_Odometry/bin'
+[2.220s] Level 1:colcon.colcon_core.environment:checking '/home/ibrahim/ros2_ws/src/Visual_Odometry/install/Visual_Odometry/lib/pkgconfig/Visual_Odometry.pc'
+[2.220s] Level 1:colcon.colcon_core.environment:checking '/home/ibrahim/ros2_ws/src/Visual_Odometry/install/Visual_Odometry/lib/python3.12/site-packages'
+[2.220s] Level 1:colcon.colcon_core.shell:create_environment_hook('Visual_Odometry', 'pythonpath')
+[2.221s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/home/ibrahim/ros2_ws/src/Visual_Odometry/install/Visual_Odometry/share/Visual_Odometry/hook/pythonpath.dsv'
+[2.221s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/ibrahim/ros2_ws/src/Visual_Odometry/install/Visual_Odometry/share/Visual_Odometry/hook/pythonpath.sh'
+[2.222s] Level 1:colcon.colcon_core.environment:checking '/home/ibrahim/ros2_ws/src/Visual_Odometry/install/Visual_Odometry/bin'
+[2.222s] Level 1:colcon.colcon_core.environment:create_environment_scripts_only(Visual_Odometry)
+[2.222s] INFO:colcon.colcon_core.shell:Creating package descriptor '/home/ibrahim/ros2_ws/src/Visual_Odometry/install/Visual_Odometry/share/Visual_Odometry/package.dsv'
+[2.223s] INFO:colcon.colcon_core.shell:Creating package script '/home/ibrahim/ros2_ws/src/Visual_Odometry/install/Visual_Odometry/share/Visual_Odometry/package.sh'
+[2.223s] INFO:colcon.colcon_core.shell:Creating package script '/home/ibrahim/ros2_ws/src/Visual_Odometry/install/Visual_Odometry/share/Visual_Odometry/package.bash'
+[2.224s] INFO:colcon.colcon_core.shell:Creating package script '/home/ibrahim/ros2_ws/src/Visual_Odometry/install/Visual_Odometry/share/Visual_Odometry/package.zsh'
+[2.225s] Level 1:colcon.colcon_core.environment:create_file_with_runtime_dependencies(/home/ibrahim/ros2_ws/src/Visual_Odometry/install/Visual_Odometry/share/colcon-core/packages/Visual_Odometry)
+[2.225s] DEBUG:colcon.colcon_parallel_executor.executor.parallel:closing loop
+[2.225s] DEBUG:colcon.colcon_parallel_executor.executor.parallel:loop closed
+[2.225s] DEBUG:colcon.colcon_parallel_executor.executor.parallel:run_until_complete finished with '0'
+[2.225s] DEBUG:colcon.colcon_core.event_reactor:joining thread
+[2.247s] INFO:colcon.colcon_core.plugin_system:Skipping extension 'colcon_notification.desktop_notification.terminal_notifier': Not used on non-Darwin systems
+[2.247s] INFO:colcon.colcon_core.plugin_system:Skipping extension 'colcon_notification.desktop_notification.win32': Not used on non-Windows systems
+[2.247s] INFO:colcon.colcon_notification.desktop_notification:Sending desktop notification using 'notify2'
+[2.271s] DEBUG:colcon.colcon_core.event_reactor:joined thread
+[2.271s] INFO:colcon.colcon_core.shell:Creating prefix script '/home/ibrahim/ros2_ws/src/Visual_Odometry/install/local_setup.sh'
+[2.272s] INFO:colcon.colcon_core.shell:Creating prefix util module '/home/ibrahim/ros2_ws/src/Visual_Odometry/install/_local_setup_util_sh.py'
+[2.274s] INFO:colcon.colcon_core.shell:Creating prefix chain script '/home/ibrahim/ros2_ws/src/Visual_Odometry/install/setup.sh'
+[2.275s] INFO:colcon.colcon_core.shell:Creating prefix script '/home/ibrahim/ros2_ws/src/Visual_Odometry/install/local_setup.bash'
+[2.275s] INFO:colcon.colcon_core.shell:Creating prefix chain script '/home/ibrahim/ros2_ws/src/Visual_Odometry/install/setup.bash'
+[2.276s] INFO:colcon.colcon_core.shell:Creating prefix script '/home/ibrahim/ros2_ws/src/Visual_Odometry/install/local_setup.zsh'
+[2.277s] INFO:colcon.colcon_core.shell:Creating prefix chain script '/home/ibrahim/ros2_ws/src/Visual_Odometry/install/setup.zsh'
