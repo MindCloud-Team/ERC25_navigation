@@ -7,7 +7,11 @@ from nav_msgs.msg import Odometry
 import math 
 from std_msgs import Int16
 from functools import partial
-
+from trajectory_msgs.msg import JointTrajectory,JointTrajectoryPoint
+from rclpy.action import ActionClient
+from rclpy.action import ActionServer
+from control_msgs.action import FollowJointTrajectory
+from rclpy.action.client import ClientGoalHandle
 
 class PID():
     def __init__(self,Kp,Kd,Ki):
@@ -28,60 +32,83 @@ class PID():
     def calculate_heading(self):
         pass 
 
-    def Control(self);
+    def Control(self):
         pass
 
-class Encoder(Node):
-    def __init__(self):
-        super().__init__('encoder_node')
-        self.create_subscription(Int16,'/encoder_ticks',10,self.call_back_encoder)
-
-    def call_back_encoder(self,msg:Int16):
-        self.ticks = msg.data
 
         
-class Trajectory(Node):
+class ControlNode(Node):
     def __init__(self):
         super().__init__('Trajectory')
-        self.odom_sub = self.create_subscription(Odometry,'odom',10,self.odom_call_back)
-        self.cmd_pub = self.create_publisher(Twist,'cmd_vel',10)
+        self.odom_sub = self.create_subscription(Odometry,'odom',10,self.odom_call_back)   # subcribe to 'odom'  topic 
+        self.cmd_pub = self.create_publisher(Twist,'cmd_vel',10) # publish to 'cmd_vel' topic
+        self.client = ActionClient(self,FollowJointTrajectory,'Trajectory')
+        
+    def send_goal(self):
+
+        self.count_until_client.wait_for_server() #wait to the action server 
+
+        goal = FollowJointTrajectory.Goal() # create a goal 
+
+        goal.trajectory.joint_names = ['wheel_right_joint','wheel_left_joint']  #specfiy joint names 
+
+        point = JointTrajectoryPoint()  #create point 
+
+        point.positions = [1.0,2.0]  # give postion to the wheel 
+        point.velocities = [3.0,4.0]  #give veolicty to the wheel 
+        point.accelerations = [2.0,2.0]  #give accleration  to the wheel 
+
+        goal.trajectory.points = [point]  
+
+        self.get_logger().info("sending goal")  
+
+        self.count_until_client.send_goal_async(goal).add_done_callback(self.goal_response_callback)  
+
+    def goal_response_callback(self, future):
+            self.goal_handle_: ClientGoalHandle = future.result() # type: ignore
+            if self.goal_handle_.accepted:
+                self.goal_handle_.get_result_async().add_done_callback(self.goal_result_callback)
 
 
+    def goal_result_callback(self, future):
+            result = future.result().result
+            self.get_logger().info(f"result : {str(result.error_string)}")
+
+    
+    def feedback(self,feedback_msg):
+         actual_positions = feedback_msg.feedback.actual.position    # taking real postion
+         actual_velocities = feedback_msg.feedback.actual.velocity   # taking real veolicty 
+         desired_positions = feedback_msg.feedback.desired.position  # taking desired postion
+         desired_velocities = feedback_msg.feedback.desired.velocity  # taking desired veolicty
+
+
+         self.get_logger().info(f'desired postion {desired_positions} desired velocities {desired_velocities}')
+         self.get_logger().info(f'actual postion {actual_positions} actual velocities {actual_velocities}')
+         
+        
 
 
     def odom_call_back(self,msg:Odometry):
        self.robot_x = msg.pose.pose.postion.x
        self.robot_y = msg.pose.pose.postion.y
 
-       
+       self.robot_linear_veolicty = self.twist.twist.linear.x
+       self.robot_linear_veolicty = self.twist.twist.linear.y
+       self.robot_linear_veolicty = self.twist.twist.linear.z
 
 
-    def cmd_vel_service(self):
-        client = self.create_client(Twist,'cmd_vel')
-        while not client.wait_for_service(1.0):
-            self.get_logger().warn("waiting for service")
-
-        request =Twist.Request()
-        request.linear.x = # liner veolcity from pid 
+       self.robot_angular_veolicty = self.twist.twist.angular.x
+       self.robot_angular_veolicty = self.twist.twist.angular.y
+       self.robot_angular_veolicty = self.twist.twist.angular.z
 
 
-        future = client.call_async(request)
-        future.add_done_callback(partial(self.callback_set_pen))
-
-
-
-    def callback_set_pen(self,future):
-        try:
-             response = future.result()
-        except Exception as e:
-            self.get_logger().error(f"service call failed :{e}")
 
 
        
 
 def main(args=None):
     rclpy.init(args=args)
-    node = Trajectory()
+    node = ControlNode()
     rclpy.spin()
     rclpy.shutdown()
 
