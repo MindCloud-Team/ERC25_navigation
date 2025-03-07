@@ -83,7 +83,7 @@ class LocalizationImuEncoder(Node):
 
         # Get Parameters
         self.rate = self.get_parameter("rate").value
-        self.base_width = self.get_parameter("base_width").vale
+        self.base_width = self.get_parameter("base_width").value
         wheel_diameter = self.get_parameter("wheel_diameter").value
         ticks_per_rev = self.get_parameter("ticks_per_rev").value
 
