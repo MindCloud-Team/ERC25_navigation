@@ -113,7 +113,6 @@ class PIDControllerNode(Node):
         """
         Main Function which computes the velocity using PID
         """
-        self.get_logger().info("LOL")
         cte = self._calculate_cte()
         heading_error = self._calculate_heading()
 
