@@ -171,6 +171,8 @@ class LocalizationImuEncoder(Node):
         # Publish and Broadcast messages
         self._create_odom_msg()
         self._create_tf_msg()
+        
+        self.get_logger().info(f"X = {self.x}, Y = {self.y}, theta = {self.theta_both}")
 
     def _create_tf_msg(self):
         """
