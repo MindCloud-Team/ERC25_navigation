@@ -25,6 +25,7 @@ setup(
         'console_scripts': [
             'dead_reckoning = localization.dead_reckoning:main',
             'encoder_sim = localization.encoder_sim:main',
+            'dead_reckoning_sim = localization.dead_reckoning_sim:main',
         ],
     },
 )

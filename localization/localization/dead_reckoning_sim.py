@@ -28,8 +28,7 @@ class LocalizationImuEncoder(Node):
     Attributes:
         ~rate (int): Proccessing rate in Hz
         imu_sub (Subscriber): Subscribes to IMU data
-        l_encoder_sub (Subscriber): Subscribes to ticks of the left wheel
-        r_encoder_sub (Subscriber): Subscribes to ticks of the right wheel
+        encoders_sub (Subscriber): Subscribes to ticks of both encoders
         odom_pub (Publisher): Publisher Odometry Data
         tf_broadcaster (Broadcaster): Broadcasts Transforms
         base_width (float): distance between wheels in cm
@@ -63,8 +62,7 @@ class LocalizationImuEncoder(Node):
 
     ROS Subscriber:
         /bno055/imu (sensor_msgs/Imu)
-        /left_wheel_encoder (std_msgs/Int16)
-        /right_wheel_encoder (std_msgs/Int16)
+        /encoder_ricks (rovers_interfaces/Ticks)
 
     ROS Publishers:
         /odom (nav_msgs/Odometry)
@@ -128,17 +126,10 @@ class LocalizationImuEncoder(Node):
             10
         )
 
-        self.l_encoder_sub = self.create_subscription(
-            Int16,
-            "/left_ticks",
-            self._left_wheel_callback,
-            10
-        )
-
-        self.r_encoder_sub = self.create_subscription(
-            Int16,
-            "/right_ticks",
-            self._right_wheel_callback,
+        self._encoders_sub = self.create_subscription(
+            Ticks,
+            "/encoder_ticks",
+            self._encoders_callback,
             10
         )
 
@@ -272,14 +263,18 @@ class LocalizationImuEncoder(Node):
             self.yaw -= 2 * pi
         # self.yaw = msg.angular_velocity.z
 
-    def _right_wheel_callback(self, msg: Int16):
-        """
-        Stores the ticks from the encoder
+    def _encoders_callback(self, msg: Ticks):
+        l_real_ticks = msg.ticks_left
+        r_real_ticks = msg.ticks_right
 
-        Args:
-            msg (sts_msgs/Int16)
-        """
-        r_real_ticks = msg.data
+        if (l_real_ticks < self.encoder_low_wrap and self.l_prev_real_ticks > self.encoder_high_wrap):
+            self.l_multiplier += 1
+
+        if (l_real_ticks > self.encoder_high_wrap and self.l_prev_real_ticks < self.encoder_low_wrap):
+            self.l_multiplier -= 1
+
+        self.left_wheel_ticks += 1.0 * (l_real_ticks + self.l_multiplier * (self.encoder_max - self.encoder_min))
+        self.l_prev_real_ticks = l_real_ticks
 
         if (r_real_ticks < self.encoder_low_wrap and self.r_prev_real_ticks > self.encoder_high_wrap):
             self.r_multiplier += 1
@@ -287,26 +282,11 @@ class LocalizationImuEncoder(Node):
         if (r_real_ticks > self.encoder_high_wrap and self.r_prev_real_ticks < self.encoder_low_wrap):
             self.r_multiplier -= 1
 
-        self.right_wheel_ticks = 1.0 * (r_real_ticks + self.r_multiplier * (self.encoder_max - self.encoder_min))
+        self.right_wheel_ticks += 1.0 * (r_real_ticks + self.r_multiplier * (self.encoder_max - self.encoder_min))
         self.r_prev_real_ticks = r_real_ticks
-        
 
-    def _left_wheel_callback(self, msg: Int16):
-        """
-        Stores the ticks from the encoder
-
-        Args:
-            msg (sts_msgs/Int16)
-        """
-        l_real_ticks = msg.data
-        if (l_real_ticks < self.encoder_low_wrap and self.l_prev_real_ticks > self.encoder_high_wrap):
-            self.l_multiplier += 1
-
-        if (l_real_ticks > self.encoder_high_wrap and self.l_prev_real_ticks < self.encoder_low_wrap):
-            self.l_multiplier -= 1
-
-        self.left_wheel_ticks = 1.0 * (l_real_ticks + self.l_multiplier * (self.encoder_max - self.encoder_min))
-        self.l_prev_real_ticks = l_real_ticks
+        self.get_logger().info(f"left ticks: {self.left_wheel_ticks}")
+        self.get_logger().info(f"right ticks: {self.right_wheel_ticks}")
 
 
 def main(args=None):
