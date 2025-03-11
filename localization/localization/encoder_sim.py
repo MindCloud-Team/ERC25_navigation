@@ -4,7 +4,7 @@ from rclpy.node import Node
 import math
 from std_msgs.msg import Int16
 from geometry_msgs.msg import Twist
-from my_interfaces_pkg.msg import Ticks
+from rovers_interfaces.msg import Ticks
 
 class Test(Node):
     def __init__(self):

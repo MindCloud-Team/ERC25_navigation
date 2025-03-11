@@ -13,7 +13,7 @@ from sensor_msgs.msg import Imu
 from std_msgs.msg import Int16
 from geometry_msgs.msg import TransformStamped
 from nav_msgs.msg import Odometry
-from my_interfaces_pkg.msg import Ticks
+from rovers_interfaces.msg import Ticks
 from tf2_ros import TransformBroadcaster
 from math import pi, cos, sin
 from transforms3d.euler import euler2quat
