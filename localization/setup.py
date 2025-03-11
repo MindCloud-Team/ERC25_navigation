@@ -24,6 +24,7 @@ setup(
     entry_points={
         'console_scripts': [
             'dead_reckoning = localization.dead_reckoning:main',
+            'encoder_sim = localization.encoder_sim:main',
         ],
     },
 )

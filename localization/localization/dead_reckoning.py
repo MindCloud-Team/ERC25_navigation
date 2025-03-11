@@ -13,6 +13,7 @@ from sensor_msgs.msg import Imu
 from std_msgs.msg import Int16
 from geometry_msgs.msg import TransformStamped
 from nav_msgs.msg import Odometry
+from my_interfaces_pkg.msg import Ticks
 from tf2_ros import TransformBroadcaster
 from math import pi, cos, sin
 from transforms3d.euler import euler2quat
@@ -100,6 +101,14 @@ class LocalizationImuEncoder(Node):
         self.prev_theta = 0.0
         self.dt = 1 / self.rate
         self.main_timer = self.create_timer(1 / self.rate, self._update)
+        self.encoder_min = -32768
+        self.encoder_max = 32768
+        self.encoder_low_wrap = (self.encoder_max - self.encoder_min) * 0.3 + self.encoder_min
+        self.encoder_high_wrap = (self.encoder_max - self.encoder_min) * 0.7 + self.encoder_min
+        self.l_multiplier = 0
+        self.r_multiplier = 0
+        self.l_prev_real_ticks = 0
+        self.r_prev_real_ticks = 0
 
         # Create Subscribers
         self.imu_sub = self.create_subscription(
@@ -109,17 +118,24 @@ class LocalizationImuEncoder(Node):
             10
         )
 
-        self.l_encoder_sub = self.create_subscription(
-            Int16,
-            "/left_wheel_encoder",
-            self._left_wheel_callback,
-            10
-        )
+        # self.l_encoder_sub = self.create_subscription(
+        #     Int16,
+        #     "/left_wheel_encoder",
+        #     self._left_wheel_callback,
+        #     10
+        # )
 
-        self.r_encoder_sub = self.create_subscription(
+        # self.r_encoder_sub = self.create_subscription(
+        #     Int16,
+        #     "/right_wheel_encoder",
+        #     self._right_wheel_callback,
+        #     10
+        # )
+
+        self._encoders_sub = self.create_subscription(
             Int16,
-            "/right_wheel_encoder",
-            self._right_wheel_callback,
+            "/encoder_ticks",
+            self._encoders_callback,
             10
         )
 
@@ -219,23 +235,48 @@ class LocalizationImuEncoder(Node):
         """
         self.yaw = msg.angular_velocity.z
 
-    def _right_wheel_callback(self, msg: Int16):
-        """
-        Stores the ticks from the encoder
+    # def _right_wheel_callback(self, msg: Int16):
+    #     """
+    #     Stores the ticks from the encoder
 
-        Args:
-            msg (sts_msgs/Int16)
-        """
-        self.right_wheel_ticks = msg.data
+    #     Args:
+    #         msg (sts_msgs/Int16)
+    #     """
+    #     self.right_wheel_ticks = msg.data
 
-    def _left_wheel_callback(self, msg: Int16):
-        """
-        Stores the ticks from the encoder
+    # def _left_wheel_callback(self, msg: Int16):
+    #     """
+    #     Stores the ticks from the encoder
 
-        Args:
-            msg (sts_msgs/Int16)
-        """
-        self.left_wheel_ticks = msg.data
+    #     Args:
+    #         msg (sts_msgs/Int16)
+    #     """
+    #     self.left_wheel_ticks = msg.data
+
+    def _encoders_callback(self, msg: Ticks):
+        l_real_ticks = msg.ticks_left
+        r_real_ticks = msg.ticks_right
+
+        if (l_real_ticks < self.encoder_low_wrap and self.l_prev_real_ticks > self.encoder_high_wrap):
+            self.l_multiplier += 1
+
+        if (l_real_ticks > self.encoder_high_wrap and self.l_prev_real_ticks < self.encoder_low_wrap):
+            self.l_multiplier -= 1
+
+        self.left_wheel_ticks = 1.0 * (l_real_ticks + self.l_multiplier * (self.encoder_max - self.encoder_min))
+        self.l_prev_real_ticks = l_real_ticks
+
+        if (r_real_ticks < self.encoder_low_wrap and self.r_prev_real_ticks > self.encoder_high_wrap):
+            self.r_multiplier += 1
+
+        if (r_real_ticks > self.encoder_high_wrap and self.r_prev_real_ticks < self.encoder_low_wrap):
+            self.r_multiplier -= 1
+
+        self.right_wheel_ticks = 1.0 * (r_real_ticks + self.r_multiplier * (self.encoder_max - self.encoder_min))
+        self.r_prev_real_ticks = r_real_ticks
+
+        self.get_logger().info(f"left ticks: {self.left_wheel_ticks}")
+        self.get_logger().info(f"right ticks: {self.right_wheel_ticks}")
 
 
 def main(args=None):
