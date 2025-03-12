@@ -1,15 +1,14 @@
 #! /usr/bin/env python3
 """
-A Sample for Localization of the rover using IMU and Encoders
+A Sample for Localization of the rover using Encoders
 
 This sample predicts the position of the robot using the encoders
 and the orientation using the average of the values optained from the
-Encoders and the IMU
+Encoders
 """
 
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import Imu
 from std_msgs.msg import Int16
 from geometry_msgs.msg import TransformStamped
 from nav_msgs.msg import Odometry
@@ -18,16 +17,15 @@ from tf2_ros import TransformBroadcaster
 from math import pi, cos, sin, degrees
 from transforms3d.euler import euler2quat, quat2euler
 
-class LocalizationImuEncoder(Node):
+class LocalizationEncoder(Node):
     """
-    ROS2 Node for locating the rover using IMU and Encoders
+    ROS2 Node for locating the rover using Encoders
 
-    This node subscribes to (/imu, /left_wheel_encoder and /left_wheel_encoder
+    This node subscribes to (/left_wheel_encoder and /left_wheel_encoder
     topic),  publishs Odometry message to /odom and broadcasts Transforms
 
     Attributes:
         ~rate (int): Proccessing rate in Hz
-        imu_sub (Subscriber): Subscribes to IMU data
         l_encoder_sub (Subscriber): Subscribes to ticks of the left wheel
         r_encoder_sub (Subscriber): Subscribes to ticks of the right wheel
         odom_pub (Publisher): Publisher Odometry Data
@@ -41,8 +39,7 @@ class LocalizationImuEncoder(Node):
         right_wheel_ticks (Int64): received ticks of the encoder
         x (float): estimated x position of the rover
         y (float): estimated y position of the rover
-        theta_encoder (float): measured theta using encoders
-        theta_both (float): estimated theta of the rover
+        theta_enc (float): measured theta using encoders
         prev_theta (float): used to calculate delta theta
         dt (float): Time Period
         main_timer (timer): loops the update function with rate = self.rate
@@ -62,12 +59,11 @@ class LocalizationImuEncoder(Node):
         ~child_frame_id (string): rover's frame id
 
     ROS Subscriber:
-        /bno055/imu (sensor_msgs/Imu)
         /left_wheel_encoder (std_msgs/Int16)
         /right_wheel_encoder (std_msgs/Int16)
 
     ROS Publishers:
-        /odom (nav_msgs/Odometry)
+        /enc_odom (nav_msgs/Odometry)
 
     ROS Broadcasters:
         /odom -> base_link (geometry_msgs/TransformStamped)
@@ -75,11 +71,11 @@ class LocalizationImuEncoder(Node):
 
     def __init__(self):
         """
-        Initialize the LocalizationImuEncoder.
+        Initialize the LocalizationEncoder.
 
         Sets up ROS publishers, subscribers.
         """
-        super().__init__("localization_imu_encoder")
+        super().__init__("localization_encoder")
 
         # Declare Parameters
         self.declare_parameter("rate", 10)
@@ -104,7 +100,7 @@ class LocalizationImuEncoder(Node):
         self.right_wheel_ticks = 0
         self.x = 0.0
         self.y = 0.0
-        self.theta_total = 0.0
+        self.theta_enc = 0.0
         self.prev_theta = 0.0
         self.dt = 1 / self.rate
         self.main_timer = self.create_timer(1 / self.rate, self._update)
@@ -118,16 +114,8 @@ class LocalizationImuEncoder(Node):
         self.r_prev_real_ticks = 0
         self.prev_left_wheel_ticks = 0
         self.prev_right_wheel_ticks = 0
-        self.theta_enc = 0.0
 
         # Create Subscribers
-        self.imu_sub = self.create_subscription(
-            Imu,
-            "/bno055/imu",
-            self._imu_callback,
-            10
-        )
-
         self.l_encoder_sub = self.create_subscription(
             Int16,
             "/left_ticks",
@@ -145,7 +133,7 @@ class LocalizationImuEncoder(Node):
         # Create Publishers
         self.odom_pub = self.create_publisher(
             Odometry,
-            "/odom",
+            "/enc_odom",
             10
         )
 
@@ -157,7 +145,7 @@ class LocalizationImuEncoder(Node):
         Main Function which processes the data and locate the robot
         """
         # Store Previous Theta value
-        self.prev_theta = self.theta_total
+        self.prev_theta = self.theta_enc
 
         # Calculate distance
         l_distance = (self.left_wheel_ticks - self.prev_left_wheel_ticks) \
@@ -167,32 +155,18 @@ class LocalizationImuEncoder(Node):
         self.distance = (l_distance + r_distance) / 2
 
         # Estimate Position
-        self.x += self.distance * cos(self.theta_total)
-        self.y += self.distance * sin(self.theta_total)
+        self.x += self.distance * cos(self.theta_enc)
+        self.y += self.distance * sin(self.theta_enc)
         
-        # Estimate Orientation, Uncomment the required method from below:
-        # Theta due to IMU only:
-        theta_imu = self.yaw 
-        self.theta_total = theta_imu
+        # Estimate Orientation
+        # Theta due to Encoders only:
+        self.theta_enc += ((l_distance - r_distance) / self.base_width)
+        if self.theta_enc < 0:
+           self.theta_enc += 2 * pi
+        elif self.theta_enc > 2 * pi:
+            self.theta_enc -= 2 * pi
 
-        ## Theta due to Encoders only:
-        # self.theta_enc += ((l_distance - r_distance) / self.base_width)
-        # if self.theta_enc < 0:
-        #    self.theta_enc += 2 * pi
-        # elif self.theta_enc > 2 * pi:
-        #     self.theta_enc -= 2 * pi
-        # self.theta_total = theta_imu
-
-        ## Theta due to both:
-        # theta_imu = self.yaw
-        # self.theta_enc += ((l_distance - r_distance) / self.base_width)
-        # if self.theta_enc < 0:
-        #    self.theta_enc += 2 * pi
-        # elif self.theta_enc > 2 * pi:
-        #     self.theta_enc -= 2 * pi
-        # self.theta_total = (theta_imu + self.theta_enc) / 2
-
-        self.get_logger().info(f"right = {self.right_wheel_ticks}, left = {self.left_wheel_ticks}, x ={self.x}, y = {self.y}, yaw = {degrees(self.theta_total)}")
+        self.get_logger().info(f"right = {self.right_wheel_ticks}, left = {self.left_wheel_ticks}, x ={self.x}, y = {self.y}, yaw = {degrees(self.theta_enc)}")
 
         # Publish and Broadcast messages
         self._create_odom_msg()
@@ -215,7 +189,7 @@ class LocalizationImuEncoder(Node):
         self.tf_msg.transform.translation.z = 0.0
 
         # Set Orientation
-        qx, qy, qz, qw = euler2quat(0, 0, self.theta_total)
+        qx, qy, qz, qw = euler2quat(0, 0, self.theta_enc)
         self.tf_msg.transform.rotation.x = qx
         self.tf_msg.transform.rotation.y = qy
         self.tf_msg.transform.rotation.z = qz
@@ -229,7 +203,7 @@ class LocalizationImuEncoder(Node):
         Creates the Odometry message and publishs to /odom
         """
         # Transform from euler to quaternion
-        qx, qy, qz, qw = euler2quat(0, 0, self.theta_total)
+        qx, qy, qz, qw = euler2quat(0, 0, self.theta_enc)
 
         self.odom_msg.header.frame_id = self.get_parameter("frame_id").value
         self.odom_msg.header.stamp = self.get_clock().now().to_msg()
@@ -250,27 +224,11 @@ class LocalizationImuEncoder(Node):
         # Set velocity
         self.odom_msg.twist.twist.linear.x = self.distance / self.dt
         self.odom_msg.twist.twist.linear.y = 0.0
-        self.odom_msg.twist.twist.angular.z = (self.theta_total - self.prev_theta) / self.dt
+        self.odom_msg.twist.twist.angular.z = (self.theta_enc - self.prev_theta) / self.dt
     
 
         # Publish
         self.odom_pub.publish(self.odom_msg)
-
-    def _imu_callback(self, msg: Imu):
-        """
-        Stores the yaw from the IMU
-
-        Args:
-            msg (sensor_msgs/Imu)
-        """
-        quaternion = msg.orientation
-        # quaternion = msg.pose.pose.orientation
-        (_, _, self.yaw) = quat2euler([quaternion.x, quaternion.y, quaternion.z, quaternion.w], axes='szyx')
-        if self.yaw < 0:
-           self.yaw += 2 * pi
-        elif self.yaw > 2 * pi:
-            self.yaw -= 2 * pi
-        # self.yaw = msg.angular_velocity.z
 
     def _right_wheel_callback(self, msg: Int16):
         """
@@ -314,7 +272,7 @@ def main(args=None):
     Main entry point for the localization node.
     """
     rclpy.init(args=args)
-    node = LocalizationImuEncoder()
+    node = LocalizationEncoder()
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:

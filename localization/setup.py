@@ -23,9 +23,10 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'dead_reckoning = localization.dead_reckoning:main',
+            'dead_reckoning_imu = localization.dead_reckoning_imu:main',
             'encoder_sim = localization.encoder_sim:main',
             'dead_reckoning_sim = localization.dead_reckoning_sim:main',
+            'dead_reckoning_enc = localization.dead_reckoning_enc:main',
         ],
     },
 )
