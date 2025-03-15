@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = 'my_global_costmap'
+package_name = 'global_costmap'
 
 setup(
     name=package_name,
@@ -11,7 +11,7 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
     ],
-    install_requires=['setuptools' , 'nav2_costmap_2d'],
+    install_requires=['setuptools'],
     zip_safe=True,
     maintainer='reem',
     maintainer_email='reemibraahiim1@gmail.com',
@@ -20,10 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'obstacle_layer = my_global_costmap.obstacle_layer:main',
-        ],
-        'nav2_costmap_2d.costmap_plugins': [
-            'obstacle_layer = my_global_costmap.obstacle_layer:main',
+            'global_costmap = global_costmap.global_costmap:main',
         ],
     },
 )
