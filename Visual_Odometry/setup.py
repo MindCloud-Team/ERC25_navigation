@@ -20,6 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            'vo_oak = Visual_Odometry.vo_oak:main',
         ],
     },
 )
