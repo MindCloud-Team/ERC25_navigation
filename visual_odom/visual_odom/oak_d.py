@@ -53,11 +53,11 @@ class VisualOdometry(Node):
         super().__init__("visual_odom")
         self.pub  = self.create_publisher(Odometry, "/odom", 10)
         self.accurate_pub = self.create_publisher(Odometry, "/odompro", 10)
-        # self.lsub = self.create_subscription(Image, "left/image_rect", callback= self.left_handle, qos_profile=10)
-        # self.depth_sub = self.create_subscription(Image, "stereo/depth", callback = self.depth_handle, qos_profile = 10)
+        self.lsub = self.create_subscription(Image, "left/image_rect", callback= self.left_handle, qos_profile=10)
+        self.depth_sub = self.create_subscription(Image, "stereo/depth", callback = self.depth_handle, qos_profile = 10)
         # Extracting images from the training folders
 
-        self.imgs_l = self.load_images("/home/ibrahim/ws/src/visual_odom/kitti_sequence_00/image_2")
+        #self.imgs_l = self.load_images("/home/ibrahim/ws/src/visual_odom/kitti_sequence_00/image_2")
         self.imgs_r = self.load_images("/home/ibrahim/ws/src/visual_odom/kitti_sequence_00/image_3")
         # Initializing ORB and FLANN parameters
         
@@ -120,12 +120,6 @@ class VisualOdometry(Node):
 
         good_matches = [m for m, n in matches if m.distance < 0.8 * n.distance]
         pts1, pts2 = self.extract_matched_points(kp1, kp2, good_matches)
-        print(f"Number of good matches: {len(good_matches)}")
-        # img_matches = cv2.drawMatches(img1, kp1, img2, kp2, good_matches, None, flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
-        # cv2.imshow("Feature Matches", img_matches)
-        # cv2.waitKey(0)
-        # cv2.destroyAllWindows()
-
         return pts1, pts2
 
     def extract_matched_points(self, kp1, kp2, matches):
@@ -136,86 +130,55 @@ class VisualOdometry(Node):
         pts2 = np.float32([kp2[m.trainIdx].pt for m in matches]).reshape(-1, 1, 2)
         return pts1, pts2
 
-    def PnP(self,pts3d, pts2d, dist_coeffs = None):
+    def calc_essential_matrix(self, pts1, pts2):
         
-        success, rvec, tvec, inliers = cv2.solvePnPRansac(
-            pts3d, pts2d, self.K_l, dist_coeffs, 
-            flags=cv2.SOLVEPNP_ITERATIVE  
-        )
-        if not success:
-            print("PnP RANSAC failed!")
-            return False, None, None
+        """
+        Calculates the Essential Matrix
+        """
 
-        # Convert rotation vector to rotation matrix
-        R, _ = cv2.Rodrigues(rvec)
+        E, mask = cv2.findEssentialMat(pts1, pts2, self.K_l, method=cv2.RANSAC, prob=0.999, threshold=0.5)
+
+        # Decomposing the Essential Matrix
+
+        _, R, T, mask = cv2.recoverPose(E, pts1, pts2, self.K_l)
+    
         T_mat = np.eye(4)
 
         # Forming the transformation matrix
 
         T_mat[:3, :3] = R
-        T_mat[:3, 3] = tvec.flatten()
+        T_mat[:3, 3] = T.flatten()
         return T_mat
 
     def triangulate_points(self, pts1, pts2):
+        
         """
-        Triangulates 3D points from stereo correspondences.
+        Performs 3D triangulation
+        May be useful in the future
         """
-        try:
-            if pts1.shape[1] == 1 and pts1.shape[2] == 2:
-                pts1 = pts1.reshape(-1, 2)
-                pts2 = pts2.reshape(-1, 2)
 
-            pts1_norm = pts1.reshape(-1, 2).T
-            pts2_norm = pts2.reshape(-1, 2).T
+        pts1_norm = cv2.undistortPoints(pts1, self.K_l, None)
+        pts2_norm = cv2.undistortPoints(pts2, self.K_r, None)
 
-            print(f"Number of points to triangulate: {pts1_norm.shape[1]}")
+        # Solving an incorrect shape error
 
-            # Remove NaN values
-            valid_mask = ~(np.isnan(pts1_norm).any(axis=0) | np.isnan(pts2_norm).any(axis=0))
-            pts1_norm, pts2_norm = pts1_norm[:, valid_mask], pts2_norm[:, valid_mask]
+        pts1_norm = pts1_norm.reshape(-1, 2).T  
+        pts2_norm = pts2_norm.reshape(-1, 2).T  
+        print("pts1_norm shape:", pts1_norm.shape)  
+        print("pts2_norm shape:", pts2_norm.shape)  
+        print("P_l:", self.P_l)
+        print("P_r:", self.P_r)
 
-            # Triangulate points
-            points_4d = cv2.triangulatePoints(self.P_l, self.P_r, pts1_norm, pts2_norm)
+        if np.isnan(pts1_norm).any() or np.isnan(pts2_norm).any():
+            print("NaN values detected in normalized points!")
+            return
+        if np.isinf(pts1_norm).any() or np.isinf(pts2_norm).any():
+            print("Infinite values detected in normalized points!")
+            return
 
-            # Ensure W is not near zero before division
-            valid_w = np.abs(points_4d[3]) > 1e-5
-            points_3d = (points_4d[:3, valid_w] / points_4d[3, valid_w]).T  # Shape: (N, 3)
-
-            # Ensure pts1 and pts2 are correctly indexed
-            pts1, pts2 = pts1[valid_mask], pts2[valid_mask]
-            pts1, pts2 = pts1[valid_w], pts2[valid_w]
-
-            # Validate disparity
-            disparity = pts1[:, 0] - pts2[:, 0]
-            valid_disp_mask = disparity > 0
-            if np.min(disparity) <= 0:
-                print("Warning: Invalid disparity detected! Removing invalid points.")
-
-            # Apply valid disparity mask
-            pts1, pts2 = pts1[valid_disp_mask], pts2[valid_disp_mask]
-            points_3d = points_3d[valid_disp_mask]
-
-            # Min/Max depth check
-            print("Min Depth:", np.min(points_3d[:, 2]))
-            print("Max Depth:", np.max(points_3d[:, 2]))
-
-            # Filter valid depth range
-            valid_depth_mask = (points_3d[:, 2] > 0) & (points_3d[:, 2] < 100)
-            points_3d, pts1_filtered = points_3d[valid_depth_mask], pts1[valid_depth_mask]
-
-            print(f"Valid 3D points count: {len(points_3d)}")
-            if len(points_3d) < 8:
-                print("Warning: Too few valid triangulated points!")
-                return None, None
-
-            avg_depth = np.mean(points_3d[:, 2])
-            print(f"Average depth of triangulated points: {avg_depth}")
-
-            return points_3d, pts1_filtered
-
-        except Exception as e:
-            print(f"Error in triangulation: {e}")
-            return None, None
+        points_4d = cv2.triangulatePoints(self.P_l, self.P_r, pts1_norm.T, pts2_norm.T)
+        points_3d = points_4d[:3, :] / points_4d[3, :]
+        return points_3d.T
 
     def load_calibration(self, filepath):
         
@@ -227,8 +190,8 @@ class VisualOdometry(Node):
             lines = f.readlines()
             lines = [line.strip().split(":")[1] for line in lines if ":" in line]  # Removing labels
 
-        P_l = np.reshape(np.fromstring(lines[2], dtype=np.float64, sep=' '), (3, 4))
-        P_r = np.reshape(np.fromstring(lines[3], dtype=np.float64, sep=' '), (3, 4))
+        P_l = np.reshape(np.fromstring(lines[0], dtype=np.float64, sep=' '), (3, 4))
+        P_r = np.reshape(np.fromstring(lines[1], dtype=np.float64, sep=' '), (3, 4))
         K_l = P_l[:, :3]
         K_r = P_r[:, :3]
         return K_l, P_l, K_r, P_r
@@ -435,72 +398,29 @@ class VisualOdometry(Node):
         
         return odom, rotation_matrix, translation, quaternion
 
-    # def left_handle(self, msg: Image):
+    def left_handle(self, msg: Image):
         
-    #     """
-    #     Processes received image frames
-    #     """
-    #     i =0
-    #     left = self.ros_to_cv2(msg)
-    #     if self.prev_image is None:
-    #         self.prev_image = left
-    #         return
-    #     pts1, pts2 = self.matching(self.prev_image, left)
-            
-    #         # May be needed for future optimization techniques
-            
-    #     print("P_l shape:", self.P_l.shape)  
-    #     print("P_r shape:", self.P_r.shape)  
-
-    #     #pts3D = self.triangulate_points(pts1,pts2)
-
-    #     # Filtering unnecessary points
-
-    #     if len(pts1) > 8:
-    #             T_k = self.calc_essential_matrix(pts1, pts2)
-    #             if i > 0:
-    #                 gt_translation = self.poses[i][:3, 3] - self.poses[i-1][:3, 3]
-    #                 scale = np.linalg.norm(gt_translation) / np.linalg.norm(T_k[:3, 3])
-    #                 print(f"Scale factor at frame {i}: {scale}")
-    #                 T_k[:3, 3] = T_k[:3, 3] * scale
-    #             self.C_k = self.C_k @ T_k
-    #             msg = self.odom_handle(self.C_k,i)
-    #             accurates = self.odom_truth(self.poses[i],i)
-    #             print(f"Z error : {accurates.pose.pose.position.z - msg.pose.pose.position.z}")
-    #             # Publishing the messages
-
-    #             self.pub.publish(msg)
-    #             self.accurate_pub.publish(accurates)
-    #             #time.sleep(1)
-
-    #             print(f"Pose at frame {i+1}:\n{self.C_k}\n")
-    #             self.estimates.append(self.C_k) 
-    #             i = i+1
-
-    # def depth_handle(self, msg: Image):
-    #     depth = msg
-    def process_sequence(self):
-
         """
-        Processes subsequent image frames
+        Processes received image frames
         """
-
-        for i in range(len(self.imgs_l) -1):
-
-            img1, img2 = self.imgs_l[i], self.imgs_r[i]
-            pts1, pts2 = self.matching(img1, img2)
+        i =0
+        left = self.ros_to_cv2(msg)
+        if self.prev_image is None:
+            self.prev_image = left
+            return
+        pts1, pts2 = self.matching(self.prev_image, left)
             
             # May be needed for future optimization techniques
             
-            print("P_l shape:", self.P_l.shape)  
-            print("P_r shape:", self.P_r.shape)  
+        print("P_l shape:", self.P_l.shape)  
+        print("P_r shape:", self.P_r.shape)  
 
-            pts3D = self.triangulate_points(pts1,pts2)
+        #pts3D = self.triangulate_points(pts1,pts2)
 
-            # Filtering unnecessary points
+        # Filtering unnecessary points
 
-            if len(pts1) > 8:
-                T_k = self.PnP(pts3D, pts1)
+        if len(pts1) > 8:
+                T_k = self.calc_essential_matrix(pts1, pts2)
                 if i > 0:
                     gt_translation = self.poses[i][:3, 3] - self.poses[i-1][:3, 3]
                     scale = np.linalg.norm(gt_translation) / np.linalg.norm(T_k[:3, 3])
@@ -517,7 +437,11 @@ class VisualOdometry(Node):
                 #time.sleep(1)
 
                 print(f"Pose at frame {i+1}:\n{self.C_k}\n")
-                self.estimates.append(self.C_k)
+                self.estimates.append(self.C_k) 
+                i = i+1
+
+    def depth_handle(self, msg: Image):
+        depth = msg
 def main(args = None):
 
     """
