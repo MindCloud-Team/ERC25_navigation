@@ -1,20 +1,13 @@
-#################                        STEREO VISUAL ODOMETRY CODE                        ###############
-
-#                                   Testing was done using the KITTI dataset.
-
-import time
-from sensor_msgs.msg import Image
 from scipy.spatial.transform import Rotation as R
-from geometry_msgs.msg import Pose, Point, Quaternion
+from geometry_msgs.msg import Point, Quaternion
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
 import numpy as np
-import scipy.optimize as opt
 import matplotlib.pyplot as plt
 import os
 import cv2
 import rclpy
-self.get_logger().info(f"{odom.pose.pose.position.x} {odom.pose.pose.position.y} {odom.pose.pose.position.z}")
+
 class VisualOdometry(Node):
 
     """
@@ -336,9 +329,9 @@ class VisualOdometry(Node):
         odom, rotation_matrix, translation, quaternion = self.odom_shorten(T)
 
         odom.pose.pose.position = Point(
-            x = translation[2], y = translation[1], z = translation[0])
+            x=translation[2], y=translation[1], z=translation[0])
         odom.pose.pose.orientation = Quaternion(
-            x = quaternion[0], y = quaternion[1], z = quaternion[2], w = quaternion[3]
+            x=quaternion[0], y=quaternion[1], z=quaternion[2], w=quaternion[3]
         )
 
         current_time = self.get_clock().now()
@@ -369,7 +362,7 @@ class VisualOdometry(Node):
 
         velocity_x = (translation[2] - prev_translation[2]) / dt
         velocity_y = (translation[1] - prev_translation[1]) / dt
-        velocity_z= (translation[0] - prev_translation[0]) / dt
+        velocity_z = (translation[0] - prev_translation[0]) / dt
         print(f"Frame {i}: translation_z={translation[0]}, velocity_z={velocity_z}")
 
         odom.twist.twist.linear.x = float(velocity_x)
@@ -500,12 +493,12 @@ class VisualOdometry(Node):
             print("P_l shape:", self.P_l.shape)
             print("P_r shape:", self.P_r.shape)
 
-            pts3D, pts1_filtered = self.triangulate_points(pts1,pts2)
+            pts3D, pts1_filtered = self.triangulate_points(pts1, pts2)
 
             # Filtering unnecessary points
 
             if len(pts1) > 8:
-                
+
                 T_k = self.PnP(pts3D, pts1_filtered)
                 if i > 0:
                     gt_translation = self.poses[i][:3, 3] - self.poses[i - 1][:3, 3]
