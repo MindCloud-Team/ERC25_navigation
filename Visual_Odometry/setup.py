@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = 'Visual_Odometry'
+package_name = 'visual_odom'
 
 setup(
     name=package_name,
@@ -21,6 +21,7 @@ setup(
     entry_points={
         'console_scripts': [
             'vo_oak = Visual_Odometry.vo_oak:main',
+            "vo_node = visual_odom.vo:main",
         ],
     },
 )

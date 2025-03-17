@@ -30,7 +30,7 @@ class VisualOdometry(Node):
         orb (ORB) : feature detector
         index_params (dict) : flann parameter
         search_params (dict) : flann parameter
-        K_l, P_l, K_r, P_r (all ndarray) : intrinsic coordinates of the cameras 
+        K_l, P_l, K_r, P_r (all ndarray) : intrinsic coordinates of the cameras
         disparity : depth map
         C_k (ndarray) : current transformation matrix
         estimates (list) : estimated odom
@@ -136,6 +136,8 @@ class VisualOdometry(Node):
 
     def PnP(self, pts3d, pts2d, dist_coeffs=None):
 
+        print(f"pts3d shape: {pts3d.shape}")
+        print(f"pts2d shape: {pts2d.shape}")
         success, rvec, tvec, inliers = cv2.solvePnPRansac(
             pts3d, pts2d, self.K_l, dist_coeffs,
             flags=cv2.SOLVEPNP_ITERATIVE
@@ -175,9 +177,17 @@ class VisualOdometry(Node):
             # Triangulate points
             points_4d = cv2.triangulatePoints(self.P_l, self.P_r, pts1_norm, pts2_norm)
 
+            if points_4d is None or points_4d.shape[1] == 0:
+                print("Error: No valid points were triangulated!")
+                return None, None
+
             # Ensure W is not near zero before division
             valid_w = np.abs(points_4d[3]) > 1e-5
             points_3d = (points_4d[:3, valid_w] / points_4d[3, valid_w]).T  # Shape: (N, 3)
+
+            if points_3d.shape[0] == 0:
+                print("Error: No valid 3D points after filtering!")
+                return None, None
 
             # Ensure pts1 and pts2 are correctly indexed
             pts1, pts2 = pts1[valid_mask], pts2[valid_mask]
@@ -185,7 +195,8 @@ class VisualOdometry(Node):
 
             # Validate disparity
             disparity = pts1[:, 0] - pts2[:, 0]
-            valid_disp_mask = disparity > 0
+            valid_disp_mask = (disparity > 0) & (disparity <= 100)  # ✅ FIX: Use `&` instead of `and`
+
             if np.min(disparity) <= 0:
                 print("Warning: Invalid disparity detected! Removing invalid points.")
 
@@ -193,21 +204,26 @@ class VisualOdometry(Node):
             pts1, pts2 = pts1[valid_disp_mask], pts2[valid_disp_mask]
             points_3d = points_3d[valid_disp_mask]
 
+            if points_3d.shape[0] == 0:
+                print("Error: No valid points left after disparity filtering!")
+                return None, None
+
             # Min/Max depth check
             print("Min Depth:", np.min(points_3d[:, 2]))
             print("Max Depth:", np.max(points_3d[:, 2]))
 
             # Filter valid depth range
-            valid_depth_mask = (points_3d[:, 2] > 0) & (points_3d[:, 2] < 100)
+            valid_depth_mask = (points_3d[:, 2] > 0.5) & (points_3d[:, 2] < 100)
             points_3d, pts1_filtered = points_3d[valid_depth_mask], pts1[valid_depth_mask]
 
-            print(f"Valid 3D points count: {len(points_3d)}")
-            if len(points_3d) < 8:
-                print("Warning: Too few valid triangulated points!")
+            if points_3d.shape[0] == 0:
+                print("Error: No valid points after depth filtering!")
                 return None, None
 
+            print(f"Valid 3D points count: {len(points_3d)}")
             avg_depth = np.mean(points_3d[:, 2])
             print(f"Average depth of triangulated points: {avg_depth}")
+            print("Final points_3d shape:", points_3d.shape)
 
             return points_3d, pts1_filtered
 
@@ -320,9 +336,9 @@ class VisualOdometry(Node):
         odom, rotation_matrix, translation, quaternion = self.odom_shorten(T)
 
         odom.pose.pose.position = Point(
-            x=translation[0], y=translation[1], z=translation[2])
+            x = translation[2], y = translation[1], z = translation[0])
         odom.pose.pose.orientation = Quaternion(
-            x=quaternion[0], y=quaternion[1], z=quaternion[2], w=quaternion[3]
+            x = quaternion[0], y = quaternion[1], z = quaternion[2], w = quaternion[3]
         )
 
         current_time = self.get_clock().now()
@@ -351,10 +367,10 @@ class VisualOdometry(Node):
             prev_rotation_matrix = np.eye(3)
             angular_velocity = np.zeros(shape=(3, 3))
 
-        velocity_x = (translation[0] - prev_translation[0]) / dt
+        velocity_x = (translation[2] - prev_translation[2]) / dt
         velocity_y = (translation[1] - prev_translation[1]) / dt
-        velocity_z = (translation[2] - prev_translation[2]) / dt
-        print(f"Frame {i}: translation_z={translation[2]}, velocity_z={velocity_z}")
+        velocity_z= (translation[0] - prev_translation[0]) / dt
+        print(f"Frame {i}: translation_z={translation[0]}, velocity_z={velocity_z}")
 
         odom.twist.twist.linear.x = float(velocity_x)
         odom.twist.twist.linear.y = float(velocity_y)
@@ -484,12 +500,13 @@ class VisualOdometry(Node):
             print("P_l shape:", self.P_l.shape)
             print("P_r shape:", self.P_r.shape)
 
-            pts3D = self.triangulate_points(pts1, pts2)
+            pts3D, pts1_filtered = self.triangulate_points(pts1,pts2)
 
             # Filtering unnecessary points
 
             if len(pts1) > 8:
-                T_k = self.PnP(pts3D, pts1)
+                
+                T_k = self.PnP(pts3D, pts1_filtered)
                 if i > 0:
                     gt_translation = self.poses[i][:3, 3] - self.poses[i - 1][:3, 3]
                     scale = np.linalg.norm(gt_translation) / np.linalg.norm(T_k[:3, 3])
