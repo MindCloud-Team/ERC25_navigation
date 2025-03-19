@@ -1,3 +1,12 @@
+#! /usr/bin/env python3
+"""
+A Sample for Localization of the rover using the OAK-D camera
+
+This sample predicts the position and orientation of the robot 
+using the OAK-D camera
+
+"""
+
 import os
 import rclpy
 import cv2
@@ -12,13 +21,42 @@ from cv_bridge import CvBridge
 import message_filters
 
 class OAKVisualOdometry(Node):
+    
     """
-    ROS2 node for visual odometry using OAK-D camera
-
     This node uses synchronized RGB and stereo depth data for more accurate pose estimation
+
+    This node publishes to /odom and subscribes from (/oak/rgb/camera_info, /oak/rgb/image_rect, /oak/stereo/imgae_raw)
+
+    Attributes:
+        odom_pub (Publisher) : publishes estimated odometry data
+        bridge (CvBridge) : converts images from ROS formal to opencv format
+        orb (ORB) : feature detector
+        index_params (dict) : flann parameter
+        search_params (dict) : flann parameter
+        K (numpy.ndarray) : camera intrinsic matrix
+        last_timestamp (builtin_interfaces.msg.Time) : stores time of last processed frame
+        self.prev_depth_img (numpy.ndarray) : stores last processed depth image
+        self.prev_rgb_img (numpy.ndarray) : stores lasst processed RGB image
+        C_k (numpy.ndarray) : current transformation matrix
+        estimates (list) : estimated odom
+        
+    ROS Publishers:
+        /odom (nav_msgs/Odometry)
+    
+    ROS Subscribers:
+        /oak/rgb/camera_info (sensormsgs/CameraInfo)
+        /oak/rgb/image_rect (sensormsgs/Image)
+        /oak/stereo/image_raw (sensormsgs/Image)
+
     """
 
     def __init__(self):
+        
+        """
+        Initializes the Visual Odometry.
+
+        Sets up the ROS publishers, subscribers.
+        """
         super().__init__("oak_visual_odom")
 
         # Publishers
@@ -51,7 +89,10 @@ class OAKVisualOdometry(Node):
         self.get_logger().info("OAK Visual Odometry node initialized")
 
     def camera_info_callback(self, msg):
-        """Process camera calibration information"""
+        
+        """
+        Process camera calibration information
+        """
         if self.K is None:  # Only set once
             self.K = np.array(msg.k).reshape(3, 3)
             self.get_logger().info("Camera calibration received")
@@ -63,7 +104,10 @@ class OAKVisualOdometry(Node):
             self.destroy_subscription(self.calib_sub)
 
     def setup_synchronized_subscribers(self):
-        """Set up synchronized subscribers for RGB and depth images"""
+        
+        """
+        Set up synchronized subscribers for RGB and depth images
+        """
         self.rgb_sub = message_filters.Subscriber(self, Image, '/oak/rgb/image_rect')
         self.depth_sub = message_filters.Subscriber(self, Image, '/oak/stereo/image_raw')
 
@@ -78,7 +122,10 @@ class OAKVisualOdometry(Node):
         self.get_logger().info("Synchronized subscribers set up")
 
     def synchronized_callback(self, rgb_msg, depth_msg):
-        """Process synchronized RGB and depth images"""
+        
+        """
+        Process synchronized RGB and depth images
+        """
         try:
             # Convert ROS messages to OpenCV images with correct encoding
             rgb_img = self.bridge.imgmsg_to_cv2(rgb_msg, "mono8")
@@ -109,6 +156,9 @@ class OAKVisualOdometry(Node):
             self.get_logger().error(f"Error in synchronized callback: {str(e)}")
 
     def process_frames(self, prev_rgb, curr_rgb, prev_depth, curr_depth, timestamp):
+        """
+        Processes subsequent RGB frames and publishes to /odom
+        """
         try:
             pts1, pts2, good_matches = self.match_features(prev_rgb, curr_rgb)
             if pts1 is None or len(pts1) < 8:
@@ -146,7 +196,10 @@ class OAKVisualOdometry(Node):
             self.get_logger().error(f"Error processing frames: {str(e)}")
 
     def match_features(self, img1, img2):
-        """Feature detection and matching between frames"""
+        
+        """
+        Feature detection and matching between frames
+        """
         # Calculate keypoints and descriptors
         kp1, des1 = self.orb.detectAndCompute(img1, None)
         kp2, des2 = self.orb.detectAndCompute(img2, None)
@@ -180,7 +233,10 @@ class OAKVisualOdometry(Node):
         return pts1, pts2, good_matches
 
     def get_3d_points(self, pts2d, depth_img):
-        """Convert 2D points to 3D using depth image, and return valid indices."""
+        
+        """
+        Convert 2D points to 3D using depth image, and return valid indices.
+        """
         pts3d = []
         valid_indices = []
         depth_type = depth_img.dtype
@@ -207,7 +263,10 @@ class OAKVisualOdometry(Node):
         return np.array(pts3d, dtype=np.float32), valid_indices
 
     def create_odom_message(self, T, timestamp):
-        """Create an odometry message from transformation matrix"""
+        
+        """
+        Create an odometry message from transformation matrix
+        """
         # Extract translation and rotation
         translation = T[:3, 3]
         rotation_matrix = T[:3, :3]
@@ -260,7 +319,10 @@ class OAKVisualOdometry(Node):
         return odom
 
     def visualize_trajectory(self):
-        """Visualize the estimated trajectory"""
+        
+        """
+        Visualize the estimated trajectory
+        """
         if len(self.estimates) < 2:
             self.get_logger().warn("Not enough poses to visualize trajectory")
             return
@@ -281,6 +343,10 @@ class OAKVisualOdometry(Node):
 
 
 def main(args=None):
+    
+    """
+    Main entry point for Visual Odometry node
+    """
     rclpy.init(args=args)
     node = OAKVisualOdometry()
     try:
