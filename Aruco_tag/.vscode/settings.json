@@ -1,0 +1,13 @@
+{
+    "python.autoComplete.extraPaths": [
+        "/home/mo/ros2_aruco_ws/install/ros2_aruco_interfaces/lib/python3.12/site-packages",
+        "/home/mo/ros2_aruco_ws/install/ros2_aruco/lib/python3.12/site-packages",
+        "/opt/ros/jazzy/lib/python3.12/site-packages"
+    ],
+    "python.analysis.extraPaths": [
+        "/home/mo/ros2_aruco_ws/install/ros2_aruco_interfaces/lib/python3.12/site-packages",
+        "/home/mo/ros2_aruco_ws/install/ros2_aruco/lib/python3.12/site-packages",
+        "/opt/ros/jazzy/lib/python3.12/site-packages"
+    ],
+    "cmake.sourceDirectory": "/home/mo/ros2_aruco_ws/src/ros2_aruco_interfaces"
+}
