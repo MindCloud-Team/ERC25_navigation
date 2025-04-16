@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>rovers_interfaces</name>
+  <version>0.0.0</version>
+  <description>Custom message interfaces for the rover project</description> <!-- Updated description -->
+  <maintainer email="rosuser@todo.todo">rosuser</maintainer> <!-- Consider updating email -->
+  <license>Apache License 2.0</license> <!-- Updated license, change if needed -->
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <!-- Build Dependencies: Needed only to compile code/generate messages -->
+  <build_depend>rosidl_default_generators</build_depend>
+  <build_depend>builtin_interfaces</build_depend>
+
+  <!-- Execution Dependencies: Needed only to run code -->
+  <exec_depend>rosidl_default_runtime</exec_depend>
+  <exec_depend>builtin_interfaces</exec_depend>
+
+  <!-- rclcpp is needed if you add C++ code later.
+       Using <depend> implies both build and exec dependency.
+       If you ONLY have messages, you might not strictly need it,
+       but it's often kept for future C++ nodes. -->
+  <depend>rclcpp</depend>
+
+  <!-- Group dependency for interface packages (Messages, Services, Actions) -->
+  <member_of_group>rosidl_interface_packages</member_of_group>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

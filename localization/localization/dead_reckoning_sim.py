@@ -10,13 +10,12 @@ Encoders and the IMU
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Imu
-from std_msgs.msg import Int16
 from geometry_msgs.msg import TransformStamped
 from nav_msgs.msg import Odometry
 from rovers_interfaces.msg import Ticks
 from tf2_ros import TransformBroadcaster
 from math import pi, cos, sin, degrees
-from transforms3d.euler import euler2quat, quat2euler
+from scipy.spatial.transform import Rotation as R
 
 class LocalizationImuEncoder(Node):
     """
@@ -160,13 +159,13 @@ class LocalizationImuEncoder(Node):
         # Estimate Position
         self.x += self.distance * cos(self.theta_total)
         self.y += self.distance * sin(self.theta_total)
-        
+
         # Estimate Orientation, Uncomment the required method from below:
         # Theta due to IMU only:
-        theta_imu = self.yaw 
+        theta_imu = self.yaw
         self.theta_total = theta_imu
 
-        ## Theta due to Encoders only:
+        # Theta due to Encoders only:
         # self.theta_enc += ((l_distance - r_distance) / self.base_width)
         # if self.theta_enc < 0:
         #    self.theta_enc += 2 * pi
@@ -174,7 +173,7 @@ class LocalizationImuEncoder(Node):
         #     self.theta_enc -= 2 * pi
         # self.theta_total = theta_imu
 
-        ## Theta due to both:
+        # Theta due to both:
         # theta_imu = self.yaw
         # self.theta_enc += ((l_distance - r_distance) / self.base_width)
         # if self.theta_enc < 0:
@@ -206,7 +205,8 @@ class LocalizationImuEncoder(Node):
         self.tf_msg.transform.translation.z = 0.0
 
         # Set Orientation
-        qx, qy, qz, qw = euler2quat(0, 0, self.theta_total)
+        quat = R.from_euler('xyz', [0, 0, self.theta_enc]).as_quat()  # Returns [x, y, z, w]
+        qx, qy, qz, qw = quat
         self.tf_msg.transform.rotation.x = qx
         self.tf_msg.transform.rotation.y = qy
         self.tf_msg.transform.rotation.z = qz
@@ -220,7 +220,8 @@ class LocalizationImuEncoder(Node):
         Creates the Odometry message and publishs to /odom
         """
         # Transform from euler to quaternion
-        qx, qy, qz, qw = euler2quat(0, 0, self.theta_total)
+        quat = R.from_euler('xyz', [0, 0, self.theta_enc]).as_quat()  # Returns [x, y, z, w]
+        qx, qy, qz, qw = quat
 
         self.odom_msg.header.frame_id = self.get_parameter("frame_id").value
         self.odom_msg.header.stamp = self.get_clock().now().to_msg()
@@ -242,7 +243,6 @@ class LocalizationImuEncoder(Node):
         self.odom_msg.twist.twist.linear.x = self.distance / self.dt
         self.odom_msg.twist.twist.linear.y = 0.0
         self.odom_msg.twist.twist.angular.z = (self.theta_total - self.prev_theta) / self.dt
-    
 
         # Publish
         self.odom_pub.publish(self.odom_msg)
@@ -256,9 +256,11 @@ class LocalizationImuEncoder(Node):
         """
         quaternion = msg.orientation
         # quaternion = msg.pose.pose.orientation
-        (_, _, self.yaw) = quat2euler([quaternion.x, quaternion.y, quaternion.z, quaternion.w], axes='szyx')
+        quat = [quaternion.x, quaternion.y, quaternion.z, quaternion.w]
+        euler = R.from_quat(quat).as_euler('zyx', degrees=False)  # Matches 'szyx'
+        self.yaw = euler[0]  # 'zyx' => yaw, pitch, roll
         if self.yaw < 0:
-           self.yaw += 2 * pi
+            self.yaw += 2 * pi
         elif self.yaw > 2 * pi:
             self.yaw -= 2 * pi
         # self.yaw = msg.angular_velocity.z

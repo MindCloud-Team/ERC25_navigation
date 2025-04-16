@@ -7,7 +7,6 @@ import yaml
 from nav_msgs.msg import OccupancyGrid
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import Header
 from geometry_msgs.msg import Pose
 from rclpy.qos import QoSProfile, QoSHistoryPolicy, QoSReliabilityPolicy, QoSDurabilityPolicy
 
@@ -15,27 +14,26 @@ class GlobalCostmap(Node):
 
     """
     ROS2 node for managing the global costmap.
-    
+
     This node loads a static occupancy grid map from a file, processes it,
     and publishes it as a global costmap.
-    
+
     Attributes:
         map_data (np.ndarray): Processed occupancy grid data.
         map_metadata (dict): Metadata from the YAML file describing the map.
         publisher (rclpy.publisher.Publisher): Publisher for the global costmap.
-    
+
     ROS Parameters:
         N/A (Map file path is currently hardcoded).
-    
+
     ROS Publishers:
         /my_global_costmap (nav_msgs/OccupancyGrid): Publishes the global costmap.
     """
 
     def __init__(self):
-
         """
         Initialize the GlobalCostmap node.
-        
+
         Loads the map from a file, sets up the publisher, and processes the map.
         """
 
@@ -62,17 +60,15 @@ class GlobalCostmap(Node):
         # Process the loaded map
         self.process_map()
 
-
     def load_map_from_file(self, yaml_path):
-
         """
         Load map data from a YAML configuration file and its corresponding image.
-        
+
         Reads the YAML file, extracts metadata, and loads the image as an occupancy grid.
-        
+
         Args:
             yaml_path (str): Path to the YAML file containing map metadata.
-        
+
         Returns:
             tuple: A tuple containing (map_data, map_metadata), where map_data
                    is a NumPy array representation of the occupancy grid.
@@ -105,12 +101,10 @@ class GlobalCostmap(Node):
             self.get_logger().error(f"Error loading map: {str(e)}")
             return None, None
 
-
     def process_map(self):
-
         """
         Process the loaded map and call publish func to be published as an occupancy grid.
-        
+
         Converts the NumPy array representation of the map into a ROS2 OccupancyGrid
         message and calls publish func to publishe it to the /my_global_costmap topic.
         """
@@ -129,9 +123,7 @@ class GlobalCostmap(Node):
         # Timer to periodically publish the costmap
         self.timer = self.create_timer(1.0, self.publish_costmap)
 
-
     def publish_costmap(self):
-
         """
         Publishes the generated costmap as an OccupancyGrid message.
 
@@ -152,11 +144,11 @@ class GlobalCostmap(Node):
         costmap_msg = OccupancyGrid()
         costmap_msg.header.frame_id = "map"
         costmap_msg.header.stamp = self.get_clock().now().to_msg()
-        
+
         costmap_msg.info.resolution = self.map_metadata['resolution']
         costmap_msg.info.width = self.map_metadata['width']
         costmap_msg.info.height = self.map_metadata['height']
-        
+
         # Set the map origin
         origin = list(map(float, self.map_metadata.get('origin', [0.0, 0.0, 0.0])))
 
@@ -174,19 +166,18 @@ class GlobalCostmap(Node):
 
 
 def main(args=None):
-
     """
     Main entry point for the GlobalCostmap node.
-    
+
     Initializes the ROS2 node and starts spinning.
-    
+
     Args:
         args: Command-line arguments.
     """
-    
+
     rclpy.init(args=args)
     global_costmap = GlobalCostmap()
-    
+
     try:
         rclpy.spin(global_costmap)
     except KeyboardInterrupt:

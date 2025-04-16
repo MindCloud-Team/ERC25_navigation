@@ -12,10 +12,9 @@ from rclpy.node import Node
 from std_msgs.msg import Int16
 from geometry_msgs.msg import TransformStamped
 from nav_msgs.msg import Odometry
-from rovers_interfaces.msg import Ticks
 from tf2_ros import TransformBroadcaster
 from math import pi, cos, sin, degrees
-from transforms3d.euler import euler2quat, quat2euler
+from scipy.spatial.transform import Rotation as R
 
 class LocalizationEncoder(Node):
     """
@@ -157,12 +156,12 @@ class LocalizationEncoder(Node):
         # Estimate Position
         self.x += self.distance * cos(self.theta_enc)
         self.y += self.distance * sin(self.theta_enc)
-        
+
         # Estimate Orientation
         # Theta due to Encoders only:
         self.theta_enc += ((l_distance - r_distance) / self.base_width)
         if self.theta_enc < 0:
-           self.theta_enc += 2 * pi
+            self.theta_enc += 2 * pi
         elif self.theta_enc > 2 * pi:
             self.theta_enc -= 2 * pi
 
@@ -189,7 +188,9 @@ class LocalizationEncoder(Node):
         self.tf_msg.transform.translation.z = 0.0
 
         # Set Orientation
-        qx, qy, qz, qw = euler2quat(0, 0, self.theta_enc)
+        quat = R.from_euler('xyz', [0, 0, self.theta_enc]).as_quat()  # Returns [x, y, z, w]
+        qx, qy, qz, qw = quat
+
         self.tf_msg.transform.rotation.x = qx
         self.tf_msg.transform.rotation.y = qy
         self.tf_msg.transform.rotation.z = qz
@@ -203,7 +204,8 @@ class LocalizationEncoder(Node):
         Creates the Odometry message and publishs to /odom
         """
         # Transform from euler to quaternion
-        qx, qy, qz, qw = euler2quat(0, 0, self.theta_enc)
+        quat = R.from_euler('xyz', [0, 0, self.theta_enc]).as_quat()  # Returns [x, y, z, w]
+        qx, qy, qz, qw = quat
 
         self.odom_msg.header.frame_id = self.get_parameter("frame_id").value
         self.odom_msg.header.stamp = self.get_clock().now().to_msg()
@@ -225,7 +227,6 @@ class LocalizationEncoder(Node):
         self.odom_msg.twist.twist.linear.x = self.distance / self.dt
         self.odom_msg.twist.twist.linear.y = 0.0
         self.odom_msg.twist.twist.angular.z = (self.theta_enc - self.prev_theta) / self.dt
-    
 
         # Publish
         self.odom_pub.publish(self.odom_msg)
@@ -247,7 +248,6 @@ class LocalizationEncoder(Node):
 
         self.right_wheel_ticks = 1.0 * (r_real_ticks + self.r_multiplier * (self.encoder_max - self.encoder_min))
         self.r_prev_real_ticks = r_real_ticks
-        
 
     def _left_wheel_callback(self, msg: Int16):
         """

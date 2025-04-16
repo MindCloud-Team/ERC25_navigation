@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = 'visual_odom'
+package_name = 'visual_odometry'
 
 setup(
     name=package_name,
@@ -13,15 +13,15 @@ setup(
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    maintainer='ibrahim',
-    maintainer_email='ibrahimsalem6622005@gmail.com',
+    maintainer='rosuser',
+    maintainer_email='rosuser@todo.todo',
     description='TODO: Package description',
     license='TODO: License declaration',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'vo_oak = Visual_Odometry.vo_oak:main',
-            "vo_node = visual_odom.vo:main",
+            'vo = visual_odometry.vo:main',
+            'vo_oak = visual_odometry.vo_oak:main',
         ],
     },
 )

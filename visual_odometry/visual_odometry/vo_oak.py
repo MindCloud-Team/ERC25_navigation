@@ -2,7 +2,7 @@
 """
 A Sample for Localization of the rover using the OAK-D camera
 
-This sample predicts the position and orientation of the robot 
+This sample predicts the position and orientation of the robot
 using the OAK-D camera
 
 """
@@ -21,7 +21,7 @@ from cv_bridge import CvBridge
 import message_filters
 
 class OAKVisualOdometry(Node):
-    
+
     """
     This node uses synchronized RGB and stereo depth data for more accurate pose estimation
 
@@ -39,10 +39,10 @@ class OAKVisualOdometry(Node):
         self.prev_rgb_img (numpy.ndarray) : stores lasst processed RGB image
         C_k (numpy.ndarray) : current transformation matrix
         estimates (list) : estimated odom
-        
+
     ROS Publishers:
         /odom (nav_msgs/Odometry)
-    
+
     ROS Subscribers:
         /oak/rgb/camera_info (sensormsgs/CameraInfo)
         /oak/rgb/image_rect (sensormsgs/Image)
@@ -51,7 +51,6 @@ class OAKVisualOdometry(Node):
     """
 
     def __init__(self):
-        
         """
         Initializes the Visual Odometry.
 
@@ -89,7 +88,6 @@ class OAKVisualOdometry(Node):
         self.get_logger().info("OAK Visual Odometry node initialized")
 
     def camera_info_callback(self, msg):
-        
         """
         Process camera calibration information
         """
@@ -104,7 +102,6 @@ class OAKVisualOdometry(Node):
             self.destroy_subscription(self.calib_sub)
 
     def setup_synchronized_subscribers(self):
-        
         """
         Set up synchronized subscribers for RGB and depth images
         """
@@ -122,7 +119,6 @@ class OAKVisualOdometry(Node):
         self.get_logger().info("Synchronized subscribers set up")
 
     def synchronized_callback(self, rgb_msg, depth_msg):
-        
         """
         Process synchronized RGB and depth images
         """
@@ -196,7 +192,6 @@ class OAKVisualOdometry(Node):
             self.get_logger().error(f"Error processing frames: {str(e)}")
 
     def match_features(self, img1, img2):
-        
         """
         Feature detection and matching between frames
         """
@@ -233,7 +228,6 @@ class OAKVisualOdometry(Node):
         return pts1, pts2, good_matches
 
     def get_3d_points(self, pts2d, depth_img):
-        
         """
         Convert 2D points to 3D using depth image, and return valid indices.
         """
@@ -263,7 +257,6 @@ class OAKVisualOdometry(Node):
         return np.array(pts3d, dtype=np.float32), valid_indices
 
     def create_odom_message(self, T, timestamp):
-        
         """
         Create an odometry message from transformation matrix
         """
@@ -319,7 +312,6 @@ class OAKVisualOdometry(Node):
         return odom
 
     def visualize_trajectory(self):
-        
         """
         Visualize the estimated trajectory
         """
@@ -343,7 +335,6 @@ class OAKVisualOdometry(Node):
 
 
 def main(args=None):
-    
     """
     Main entry point for Visual Odometry node
     """
