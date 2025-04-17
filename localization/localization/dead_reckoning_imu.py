@@ -98,6 +98,7 @@ class LocalizationImuEncoder(Node):
         self.tf_msg = TransformStamped()
         self.odom_msg = Odometry()
         self.yaw = 0.0
+        self.imu_start = None
         self.left_wheel_ticks = 0
         self.right_wheel_ticks = 0
         self.x = 0.0
@@ -248,6 +249,11 @@ class LocalizationImuEncoder(Node):
         quat = [quaternion.x, quaternion.y, quaternion.z, quaternion.w]
         euler = R.from_quat(quat).as_euler('zyx', degrees=False)  # Matches 'szyx'
         self.yaw = euler[0]  # 'zyx' => yaw, pitch, roll
+
+        if self.imu_start is None:
+            self.imu_start = self.yaw
+
+        self.yaw -= self.imu_start
 
         if self.yaw < 0:
             self.yaw += 2 * pi
