@@ -254,6 +254,7 @@ class GlobalPlannerNode(Node):
         path.reverse()
 
         return path
+    
     def smooth_path_bezier(self, path, samples=40):
         """
         Smooth path using Bezier curves.
@@ -290,6 +291,7 @@ class GlobalPlannerNode(Node):
         smoothed.append(path[-1])
         
         return smoothed
+    
     def publish_path(self, path):
         """
         Publishes the computed path to the /global_planner topic.
