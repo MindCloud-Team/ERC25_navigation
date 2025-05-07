@@ -254,7 +254,42 @@ class GlobalPlannerNode(Node):
         path.reverse()
 
         return path
-
+    def smooth_path_bezier(self, path, samples=40):
+        """
+        Smooth path using Bezier curves.
+        
+        Args:
+            path: List of (x,y) coordinates
+            samples: Number of interpolated points between nodes
+            
+        Returns:
+            Smoothed path as list of (x,y) coordinates
+        """
+        if not path or len(path) < 3:
+            return path  # Return original if not enough points
+            
+        smoothed = []
+        n = len(path)
+        
+        # Add first point unchanged
+        smoothed.append(path[0])
+        
+        # Process middle points
+        for i in range(1, n-1):
+            p0 = path[i-1]  # Previous point
+            p1 = path[i]    # Current point (control point)
+            p2 = path[i+1]  # Next point
+            
+            # Generate interpolated points
+            for t in np.linspace(0, 1, samples):
+                x = (1-t)**2 * p0[0] + 2*(1-t)*t * p1[0] + t**2 * p2[0]
+                y = (1-t)**2 * p0[1] + 2*(1-t)*t * p1[1] + t**2 * p2[1]
+                smoothed.append((x, y))
+        
+        # Add last point unchanged
+        smoothed.append(path[-1])
+        
+        return smoothed
     def publish_path(self, path):
         """
         Publishes the computed path to the /global_planner topic.
@@ -266,15 +301,50 @@ class GlobalPlannerNode(Node):
         msg.header.stamp = self.get_clock().now().to_msg()
         msg.header.frame_id = "map"
 
-        for x, y in path:
+        if not path:
+            return
+            
+        # Apply smoothing
+        smoothed_path = self.smooth_path_bezier(path)  # or any other method
+        
+        # Convert to meters
+        path_meters = [self.grid_to_meter(x, y) for x, y in smoothed_path]
+
+        if len(path) < 1:
+            return
+
+        # Convert all grid coordinates to meters first
+        # path_meters = [self.grid_to_meter(x, y) for x, y in path]
+
+        # First pose: Default orientation (theta=0)
+        pose = PoseStamped()
+        pose.pose.position.x = float(path_meters[0][0])
+        pose.pose.position.y = float(path_meters[0][1])
+        pose.pose.orientation.w = 1.0  # No rotation (identity quaternion)
+        msg.poses.append(pose)
+
+        # For subsequent poses, compute theta and convert to quaternion
+        for i in range(1, len(path_meters)):
             pose = PoseStamped()
-            x, y = self.grid_to_meter(x, y)
-            pose.pose.position.x = float(x)
-            pose.pose.position.y = float(y)
+            pose.pose.position.x = float(path_meters[i][0])
+            pose.pose.position.y = float(path_meters[i][1])
+
+            # Compute theta (yaw) from previous waypoint to current
+            dx = path_meters[i][0] - path_meters[i-1][0]
+            dy = path_meters[i][1] - path_meters[i-1][1]
+            theta = np.arctan2(dy, dx)
+
+            # Manually compute quaternion (no tf_transformations)
+            cy = np.cos(theta * 0.5)  # Half-angle for quaternion
+            sy = np.sin(theta * 0.5)
+            pose.pose.orientation.x = 0.0  # No roll (x=0)
+            pose.pose.orientation.y = 0.0  # No pitch (y=0)
+            pose.pose.orientation.z = sy   # Z = sin(theta/2)
+            pose.pose.orientation.w = cy   # W = cos(theta/2)
+
             msg.poses.append(pose)
 
         self.path_publisher.publish(msg)
-
 
 def main(args=None):
     """
