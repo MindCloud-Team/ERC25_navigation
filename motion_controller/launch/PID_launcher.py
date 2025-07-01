@@ -6,16 +6,16 @@ def generate_launch_description():
         Node(
             package='motion_controller',
             executable='PID_controller',
-            name='motion_control',
+            name='motion_control_our',
             output='screen',
             parameters=[{
                 'rate': 50,
-                'linear_kp': 1.0,
-                'linear_ki': 0.5,
-                'linear_kd': 0.2,
-                'angular_kp': 1.2,
-                'angular_ki': 0.3,
-                'angular_kd': 0.4
+                'linear_kp': 2.0,
+                'linear_ki': 0.1,
+                'linear_kd': 0.3,
+                'angular_kp': 2.0,
+                'angular_ki': 0.1,
+                'angular_kd': 0.3
             }
             ]
         )

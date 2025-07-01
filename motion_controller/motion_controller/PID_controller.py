@@ -8,7 +8,7 @@ and publishes linear and angular velocities accordingly
 
 import rclpy
 from rclpy.node import Node
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import Twist, TwistStamped
 from nav_msgs.msg import Odometry
 from nav_msgs.msg import Path
 from transforms3d.euler import quat2euler
@@ -60,14 +60,14 @@ class PIDControllerNode(Node):
         """
         super().__init__('motion_control')
                
-        # Declare Parameters
+        # Declare Parameters - Tuned for faster, more responsive control
         self.declare_parameter("rate", 50)
-        self.declare_parameter("linear_kp", 1.0)
-        self.declare_parameter("linear_ki", 0.5)
-        self.declare_parameter("linear_kd", 0.2)
-        self.declare_parameter("angular_kp", 1.2)
-        self.declare_parameter("angular_ki", 0.3)
-        self.declare_parameter("angular_kd", 0.4)
+        self.declare_parameter("linear_kp", 1.5)  # Increased for faster response
+        self.declare_parameter("linear_ki", 0.1)  # Reduced to prevent overshoot
+        self.declare_parameter("linear_kd", 0.3)  # Increased for better damping
+        self.declare_parameter("angular_kp", 2.0)  # Increased for faster turning
+        self.declare_parameter("angular_ki", 0.1)  # Reduced to prevent oscillation
+        self.declare_parameter("angular_kd", 0.5)  # Increased for better stability
 
         # Attributes
         self.dt = 1 / self.get_parameter("rate").value
@@ -83,19 +83,22 @@ class PIDControllerNode(Node):
         self.integral_cte = 0.0
         self.prev_error_heading = 0.0
         self.integral_heading = 0.0
+        self.has_path = False
+        self.current_waypoint_index = 0
+        self.waypoint_tolerance = 0.01  # Reduced tolerance for more precise navigation
         self.timer = self.create_timer(self.dt, self._compute_velocity)
 
         # Create Publishers
         self.twist_pub = self.create_publisher(
-            Twist,
-            '/cmd_vel',
+            TwistStamped,
+            '/diffdrive_controller/cmd_vel',
             10
         )
 
         # Create Subscribers
         self.path_sub = self.create_subscription(
             Path,
-            "/path",
+            "/optimized_trajectory",
             self._path_callback,
             10
         )
@@ -113,8 +116,31 @@ class PIDControllerNode(Node):
         """
         Main Function which computes the velocity using PID
         """
+        if not self.has_path:
+            # Stop if no path
+            msg = TwistStamped()
+            msg.header.stamp = self.get_clock().now().to_msg()
+            msg.header.frame_id = 'base_link'
+            self.twist_pub.publish(msg)
+            return
+            
+        # Check if reached current waypoint
+        distance_to_target = self._calculate_cte()
+        if distance_to_target < self.waypoint_tolerance:
+            self._advance_to_next_waypoint()
+            
+        if not self.has_path:  # No more waypoints
+            msg = TwistStamped()
+            msg.header.stamp = self.get_clock().now().to_msg()
+            msg.header.frame_id = 'base_link'
+            self.twist_pub.publish(msg)
+            self.get_logger().info("Path completed!")
+            return
+            
         cte = self._calculate_cte()
         heading_error = self._calculate_heading()
+        
+        self.get_logger().info(f"CTE: {cte:.3f}, Heading Error: {heading_error:.3f}")
 
         self.linear_pid_value, self.previous_cte_error, self.integral_cte = \
         self._calculate_PID(
@@ -144,16 +170,27 @@ class PIDControllerNode(Node):
         """
         Creates the Twist message and publishs to /cmd_vel
         """
-        # Ensure linear speed is always positive
-        linear_speed = max(0.0, self.linear_pid_value)
+        # Add base velocity and PID correction
+        base_linear_velocity = 1.0  # Increased base forward speed
+        linear_speed = base_linear_velocity - abs(self.linear_pid_value) * 0.5  # Reduce PID impact
+        
+        # Ensure minimum and maximum forward velocity
+        linear_speed = max(0.2, min(linear_speed, 1.5))
 
-        if abs(self._calculate_heading()) > 0.5:
-            linear_speed *= 0.5
+        # Reduce speed when turning sharply
+        heading_error = abs(self._calculate_heading())
+        if heading_error > 0.3:  # More aggressive turning threshold
+            linear_speed *= max(0.3, 1.0 - heading_error)  # Gradual speed reduction
 
-        msg = Twist()
-        msg.linear.x = linear_speed
-        msg.angular.z = self.angular_pid_value
+        msg = TwistStamped()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = 'base_link'
+        msg.twist.linear.x = linear_speed
+        msg.twist.angular.z = self.angular_pid_value
 
+        self.get_logger().info(f"Publishing: Linear={msg.twist.linear.x:.3f}, Angular={msg.twist.angular.z:.3f}")
+        self.get_logger().info(f"PID values: Linear PID={self.linear_pid_value:.3f}, Angular PID={self.angular_pid_value:.3f}")
+        
         self.twist_pub.publish(msg)
 
     def _calculate_PID(self, error, prev_error, integral_err, kp, ki, kd, dt):
@@ -187,8 +224,22 @@ class PIDControllerNode(Node):
         Returns:
             CTE (float): CTE value
         """
-        cte = sqrt(((self.rover_y - self.target_y) ** 2) + \
-                   ((self.rover_x - self.target_x) ** 2))  
+        # Calculate vector from rover to target
+        dx = self.target_x - self.rover_x
+        dy = self.target_y - self.rover_y
+        
+        # For true CTE, we need perpendicular distance to path
+        # For now, using distance to target which works for point-to-point
+        distance_to_target = sqrt((dx ** 2) + (dy ** 2))
+        
+        # Add directional component - positive if we need to move forward
+        # This helps the PID controller understand direction
+        target_bearing = atan2(dy, dx)
+        bearing_error = atan2(sin(target_bearing - self.rover_yaw), 
+                             cos(target_bearing - self.rover_yaw))
+        
+        # Use signed distance based on whether we're heading toward target
+        cte = distance_to_target * (1 if abs(bearing_error) < 1.57 else -1)
         return cte
 
     def _calculate_heading(self):
@@ -228,19 +279,34 @@ class PIDControllerNode(Node):
         """
         if not msg.poses:
             self.get_logger().warn("Received empty path message!")
+            self.has_path = False
             return
         
         self.target_poses = msg.poses
-        self.target_x = self.target_poses[0].pose.position.x
-        self.target_y = self.target_poses[0].pose.position.y
-        self.desired_heading = atan2(
-            self.target_y - self.rover_y,
-            self.target_x - self.rover_x
-        )
-        self.get_logger().info(f"Target Waypoint: X={self.target_x},\
-                                Y={self.target_y}")
-        self.get_logger().info(f"Desired Heading: \
-                               {degrees(self.desired_heading)}°")
+        self.current_waypoint_index = 0
+        self.has_path = True
+        self._update_current_target()
+        self.get_logger().info(f"Received path with {len(self.target_poses)} waypoints")
+        
+    def _update_current_target(self):
+        """Update current target waypoint"""
+        if self.current_waypoint_index < len(self.target_poses):
+            self.target_x = self.target_poses[self.current_waypoint_index].pose.position.x
+            self.target_y = self.target_poses[self.current_waypoint_index].pose.position.y
+            self.desired_heading = atan2(
+                self.target_y - self.rover_y,
+                self.target_x - self.rover_x
+            )
+            self.get_logger().info(f"Target Waypoint {self.current_waypoint_index}: X={self.target_x:.3f}, Y={self.target_y:.3f}")
+        
+    def _advance_to_next_waypoint(self):
+        """Advance to next waypoint in path"""
+        self.current_waypoint_index += 1
+        if self.current_waypoint_index >= len(self.target_poses):
+            self.has_path = False
+            self.get_logger().info("Reached final waypoint!")
+        else:
+            self._update_current_target()
 
 def main(args=None):
     """

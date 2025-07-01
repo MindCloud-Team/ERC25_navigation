@@ -10,6 +10,7 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        ('share/' + package_name + '/launch', ['launch/stereo_costmap.launch.py']),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -21,6 +22,7 @@ setup(
     entry_points={
         'console_scripts': [
             'local_costmap_node = local_costmap.local_costmap_node:main',
+            'stereo_costmap_node = local_costmap.stereo_costmap_node:main',
         ],
     },
 )
