@@ -77,7 +77,7 @@ class GlobalPlannerNode(Node):
         self.map_origin_y = None
         self.current_x = None
         self.current_y = None
-        self.goal_x, self.goal_y = 1, -3
+        self.goal_x, self.goal_y = 0, 0
 
         # Path Planning Parameters
         self.orthogonal_step_cost = 1.0

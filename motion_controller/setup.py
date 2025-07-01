@@ -1,6 +1,8 @@
+import os
+from glob import glob
 from setuptools import find_packages, setup
 
-package_name = 'local_costmap'
+package_name = 'motion_controller'
 
 setup(
     name=package_name,
@@ -10,19 +12,18 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        ('share/' + package_name + '/launch', ['launch/stereo_costmap.launch.py']),
+        ('share/' + package_name + '/launch', glob(os.path.join('launch', '*.py'))),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    maintainer='reem',
-    maintainer_email='reemibraahiim1@gmail.com',
+    maintainer='mwa',
+    maintainer_email='mohamedwael200320@gmail.com',
     description='TODO: Package description',
     license='TODO: License declaration',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'local_costmap_node = local_costmap.local_costmap_node:main',
-            'stereo_costmap_node = local_costmap.stereo_costmap_node:main',
+            'PID_controller = motion_controller.PID_controller:main'
         ],
     },
 )
