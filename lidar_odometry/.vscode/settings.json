@@ -1,0 +1,22 @@
+{
+    "python.autoComplete.extraPaths": [
+        "/home/ibrahim/ws/build/visual_odom",
+        "/home/ibrahim/ws/install/visual_odom/lib/python3.12/site-packages",
+        "/home/ibrahim/ws/install/depthai_ros_driver/lib/python3.12/site-packages",
+        "/home/ibrahim/ws/install/depthai_ros_msgs/lib/python3.12/site-packages",
+        "/home/ibrahim/husarion_ws/install/husarion_ugv_utils/lib/python3.12/site-packages",
+        "/home/ibrahim/husarion_ws/install/husarion_ugv_msgs/lib/python3.12/site-packages",
+        "/home/ibrahim/husarion_ws/install/btcpp_ros2_interfaces/lib/python3.12/site-packages",
+        "/opt/ros/jazzy/lib/python3.12/site-packages"
+    ],
+    "python.analysis.extraPaths": [
+        "/home/ibrahim/ws/build/visual_odom",
+        "/home/ibrahim/ws/install/visual_odom/lib/python3.12/site-packages",
+        "/home/ibrahim/ws/install/depthai_ros_driver/lib/python3.12/site-packages",
+        "/home/ibrahim/ws/install/depthai_ros_msgs/lib/python3.12/site-packages",
+        "/home/ibrahim/husarion_ws/install/husarion_ugv_utils/lib/python3.12/site-packages",
+        "/home/ibrahim/husarion_ws/install/husarion_ugv_msgs/lib/python3.12/site-packages",
+        "/home/ibrahim/husarion_ws/install/btcpp_ros2_interfaces/lib/python3.12/site-packages",
+        "/opt/ros/jazzy/lib/python3.12/site-packages"
+    ]
+}
