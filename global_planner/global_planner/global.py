@@ -63,9 +63,14 @@ class GlobalPlannerNode(Node):
             durability=QoSDurabilityPolicy.TRANSIENT_LOCAL
         )
 
+        qos = QoSProfile(
+            depth=10,
+            reliability=QoSReliabilityPolicy.BEST_EFFORT
+        )
+
         # ROS 2 Publishers & Subscribers
         self.path_publisher = self.create_publisher(Path, 'global_planner', 10)
-        self.odom_subscriber = self.create_subscription(Odometry, '/odom', self.odom_callback, 10)
+        self.odom_subscriber = self.create_subscription(Odometry, '/sim_ground_truth_pose', self.odom_callback, qos)
         self.map_subscriber = self.create_subscription(OccupancyGrid, '/map', self.map_callback, qos_prof)
 
         # Map Information (Initialized as None)

@@ -8,8 +8,10 @@ It groups free cells as Clusters using Breadth-First Search (BFS)
 """
 import rclpy
 from rclpy.node import Node
+from rclpy.action import ActionClient
 from nav_msgs.msg import OccupancyGrid, Odometry
-from geometry_msgs.msg import PoseStamped
+from nav2_msgs.action import NavigateToPose
+from nav2_msgs.action._navigate_to_pose import NavigateToPose_FeedbackMessage
 from scipy.spatial.transform import Rotation as R
 import numpy as np
 from math import sqrt, abs, min, atan2, pi
@@ -83,12 +85,12 @@ class FrontierSearch(Node):
             self.get_current_position,
             10
         )
-        
-        # Create Publisher
-        self.goal_pub = self.create_publisher(
-            PoseStamped,
-            "/search_goal",
-            10
+
+        # Create action client
+        self.goal_client = ActionClient(
+            self,
+            NavigateToPose,
+            "/search_goal"
         )
 
     def mapCallback(self, map:OccupancyGrid):
@@ -138,7 +140,7 @@ class FrontierSearch(Node):
             current_goal = (world_x, world_y)
             if current_goal != self.last_goal:
                 self.last_goal = current_goal
-                self.publish_goal(world_x, world_y)
+                self.request_goal(world_x, world_y)
             else:
                 self.get_logger().info("Same goal as last time. Not publishing.")
 
@@ -221,7 +223,7 @@ class FrontierSearch(Node):
         # Cost Function
         return self.a*distance + self.b/cluster_size + self.g*orientation_penalty
 
-    def publish_goal(self, world_x, world_y):
+    def request_goal(self, world_x, world_y):
         """
         Publishes the goal
         
@@ -229,14 +231,48 @@ class FrontierSearch(Node):
             world_x (float)
             world_y (float)
         """
-        goal = PoseStamped()
-        goal.header.frame_id = "map"
-        goal.header.stamp = self.get_clock().now().to_msg()
-        goal.pose.position.x = world_x
-        goal.pose.position.y = world_y
-        goal.pose.orientation.w = 1.0
-        self.goal_pub.publish(goal)
-        self.get_logger().info(f"Published goal at ({world_x:.2f}, {world_y:.2f}) ")
+        goal = NavigateToPose.Goal()
+        goal.pose.header.frame_id = "map"
+        goal.pose.header.stamp = self.get_clock().now().to_msg()
+        goal.pose.pose.position.x = world_x
+        goal.pose.pose.position.y = world_y
+        goal.pose.pose.orientation.w = 1.0
+        self.goal_client.wait_for_server()
+        goal_future = self.goal_client.send_goal_async(
+            goal=goal,
+            feedback_callback=self.goal_client_feedback
+            )
+        goal_future.add_done_callback(self.goal_response_callback)
+
+    def goal_response_callback(self, future):
+        """
+        Called once the goal is accepted or rejected
+        """
+        goal_handle = future.result()
+        if not goal_handle.accepted:
+            self.get_logger().warn("Goal was rejected by action server.")
+            return
+
+        self.get_logger().info("Goal accepted. Waiting for result...")
+        result_future = goal_handle.get_result_async()
+        result_future.add_done_callback(self.goal_result_callback)
+
+    def goal_result_callback(self, future):
+        """
+        Called when the action result is received
+        """
+        result = future.result().result
+        self.get_logger().info(
+            f"Goal completed with status {result.error_code}: {result.error_msg}"
+        )
+
+    def goal_client_feedback(self, feedback_msg: NavigateToPose_FeedbackMessage):
+        """
+        Receives feedback from action server and logs them
+        """
+        self.get_logger().info(f"Feedback:: Current X: \
+                               {feedback_msg.feedback.current_pose.pose.x},\
+                                Current Y: {feedback_msg.feedback.current_pose.y}")
     
     def get_current_position(self, msg: Odometry):
         """
