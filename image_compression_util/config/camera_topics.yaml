@@ -1,0 +1,6 @@
+rgb_topics:
+  - "/front_cam/zed_node/rgb/image_rect_color"
+  - "/back_cam/zed_node/rgb/image_rect_color"
+  - "/left_cam/zed_node/rgb/image_rect_color"
+  - "/right_cam/zed_node/rgb/image_rect_color"
+
