@@ -20,6 +20,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            'frontier_search = frontier_search.frontier_search:main',
+            'temporary = frontier_search.temporary:main'
         ],
     },
 )

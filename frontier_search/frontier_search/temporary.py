@@ -14,7 +14,7 @@ from nav2_msgs.action import NavigateToPose
 from nav2_msgs.action._navigate_to_pose import NavigateToPose_FeedbackMessage
 from scipy.spatial.transform import Rotation as R
 import numpy as np
-from math import sqrt, atan2, pi
+from math import sqrt, abs, min, atan2, pi
 
 
 class FrontierSearch(Node):
@@ -126,6 +126,9 @@ class FrontierSearch(Node):
         best_centroid = None
 
         for cluster in clusters:
+            if self.is_cluster_trapped(cluster, data, width, height):
+                continue  # Skip trapped clusters
+
             centroid = self.compute_centroid(cluster)
             cost = self.compute_cost(centroid, len(cluster))
             if cost < best_cost:
@@ -181,6 +184,57 @@ class FrontierSearch(Node):
             clusters.append(cluster)
 
         return clusters
+    
+    def is_cluster_trapped(self, cluster, data, width, height, steps=5, obstacle_thresh=0.7):
+        """
+        Checks if a frontier cluster is likely enclosed by obstacles.
+
+        Args:
+            cluster (list): List of (x, y) grid cells in the cluster.
+            data (np.ndarray): 2D occupancy grid.
+            width (int): Map width.
+            height (int): Map height.
+            steps (int): Max layers to expand.
+            obstacle_thresh (float): Threshold ratio to consider trapped.
+
+        Returns:
+            bool: True if trapped, False if reachable.
+        """
+        # Not revised yet
+        # Convert to set for fast lookup
+        cluster_set = set(cluster)
+        
+        for step in range(1, steps + 1):
+            ring_cells = set()
+
+            for x, y in cluster:
+                for dx in range(-step, step + 1):
+                    for dy in [-step, step]:
+                        nx, ny = x + dx, y + dy
+                        if 0 <= nx < width and 0 <= ny < height:
+                            ring_cells.add((nx, ny))
+                    for dy in range(-step + 1, step):
+                        for dx in [-step, step]:
+                            nx, ny = x + dx, y + dy
+                            if 0 <= nx < width and 0 <= ny < height:
+                                ring_cells.add((nx, ny))
+
+            # Filter out cells already in cluster
+            ring_cells -= cluster_set
+
+            if not ring_cells:
+                continue
+
+            obstacle_count = sum(1 for (x, y) in ring_cells if data[y, x] == 100)
+            ratio = obstacle_count / len(ring_cells)
+
+            if ratio > obstacle_thresh:
+                self.get_logger().info(
+                    f"Cluster discarded at step {step} with {ratio*100:.1f}% obstacles"
+                )
+                return True  # Trapped
+
+        return False  # Reachable
     
     def compute_centroid(self, cluster):
         """
