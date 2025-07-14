@@ -1,0 +1,45 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "${default}",
+        "limitSymbolsToIncludedHeaders": false
+      },
+      "includePath": [
+        "/home/ano/ros2_ws/install/teb_msgs/include/**",
+        "/home/ano/ros2_ws/install/mecanum_drive_controller/include/**",
+        "/home/ano/ros2_ws/install/husarion_ugv_manager/include/**",
+        "/home/ano/ros2_ws/install/husarion_ugv_lights/include/**",
+        "/home/ano/ros2_ws/install/husarion_ugv_hardware_interfaces/include/**",
+        "/home/ano/ros2_ws/install/husarion_ugv_diagnostics/include/**",
+        "/home/ano/ros2_ws/install/husarion_ugv_battery/include/**",
+        "/home/ano/ros2_ws/install/husarion_ugv_utils/include/**",
+        "/home/ano/ros2_ws/install/husarion_ugv_msgs/include/**",
+        "/home/ano/ros2_ws/install/husarion_ugv_gazebo/include/**",
+        "/home/ano/ros2_ws/install/costmap_converter/include/**",
+        "/home/ano/ros2_ws/install/costmap_converter_msgs/include/**",
+        "/home/ano/ros2_ws/install/behaviortree_ros2/include/**",
+        "/home/ano/ros2_ws/install/btcpp_ros2_interfaces/include/**",
+        "/opt/ros/jazzy/include/**",
+        "/home/ano/ros2_ws/src/behaviortree_ros2/behaviortree_ros2/include/**",
+        "/home/ano/ros2_ws/src/c_pkg/include/**",
+        "/home/ano/ros2_ws/src/costmap_converter/costmap_converter/include/**",
+        "/home/ano/ros2_ws/src/husarion_controllers/mecanum_drive_controller/include/**",
+        "/home/ano/ros2_ws/src/husarion_ugv_ros/husarion_ugv_battery/include/**",
+        "/home/ano/ros2_ws/src/husarion_ugv_ros/husarion_ugv_diagnostics/include/**",
+        "/home/ano/ros2_ws/src/husarion_ugv_ros/husarion_ugv_gazebo/include/**",
+        "/home/ano/ros2_ws/src/husarion_ugv_ros/husarion_ugv_hardware_interfaces/include/**",
+        "/home/ano/ros2_ws/src/husarion_ugv_ros/husarion_ugv_lights/include/**",
+        "/home/ano/ros2_ws/src/husarion_ugv_ros/husarion_ugv_manager/include/**",
+        "/home/ano/ros2_ws/src/husarion_ugv_ros/husarion_ugv_utils/include/**",
+        "/usr/include/**"
+      ],
+      "name": "ROS",
+      "intelliSenseMode": "gcc-x64",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "gnu11",
+      "cppStandard": "c++14"
+    }
+  ],
+  "version": 4
+}

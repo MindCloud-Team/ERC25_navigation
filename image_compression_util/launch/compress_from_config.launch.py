@@ -28,11 +28,12 @@ def generate_launch_description():
                 package="image_transport",
                 executable="republish",
                 name=f"compress_{topic.strip('/').replace('/', '_')}",
-                arguments=[
-                    "raw", "compressed",
-                    "--ros-args",
-                    "--remap", f"in:={topic}",
-                    "--remap", f"out:={topic}/compressed"
+                # Arguments for the republisher program itself
+                arguments=["raw", "compressed"],
+                # Remappings handled directly and robustly by the ROS 2 launch system
+                remappings=[
+                    ('in', topic),
+                    ('out', topic)
                 ]
             )
         )
@@ -41,4 +42,3 @@ def generate_launch_description():
         DeclareLaunchArgument('config_file', default_value=default_config),
         *nodes
     ])
-

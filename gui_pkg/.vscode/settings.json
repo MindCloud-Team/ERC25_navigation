@@ -1,0 +1,30 @@
+{
+    "python.autoComplete.extraPaths": [
+        "/home/ano/ros2_ws/build/try",
+        "/home/ano/ros2_ws/install/try/lib/python3.12/site-packages",
+        "/home/ano/ros2_ws/install/teb_msgs/lib/python3.12/site-packages",
+        "/home/ano/ros2_ws/install/husarion_ugv_utils/lib/python3.12/site-packages",
+        "/home/ano/ros2_ws/install/husarion_ugv_msgs/lib/python3.12/site-packages",
+        "/home/ano/ros2_ws/build/gui_pkg",
+        "/home/ano/ros2_ws/install/gui_pkg/lib/python3.12/site-packages",
+        "/home/ano/ros2_ws/build/global_planner",
+        "/home/ano/ros2_ws/install/global_planner/lib/python3.12/site-packages",
+        "/home/ano/ros2_ws/install/costmap_converter_msgs/lib/python3.12/site-packages",
+        "/home/ano/ros2_ws/install/btcpp_ros2_interfaces/lib/python3.12/site-packages",
+        "/opt/ros/jazzy/lib/python3.12/site-packages"
+    ],
+    "python.analysis.extraPaths": [
+        "/home/ano/ros2_ws/build/try",
+        "/home/ano/ros2_ws/install/try/lib/python3.12/site-packages",
+        "/home/ano/ros2_ws/install/teb_msgs/lib/python3.12/site-packages",
+        "/home/ano/ros2_ws/install/husarion_ugv_utils/lib/python3.12/site-packages",
+        "/home/ano/ros2_ws/install/husarion_ugv_msgs/lib/python3.12/site-packages",
+        "/home/ano/ros2_ws/build/gui_pkg",
+        "/home/ano/ros2_ws/install/gui_pkg/lib/python3.12/site-packages",
+        "/home/ano/ros2_ws/build/global_planner",
+        "/home/ano/ros2_ws/install/global_planner/lib/python3.12/site-packages",
+        "/home/ano/ros2_ws/install/costmap_converter_msgs/lib/python3.12/site-packages",
+        "/home/ano/ros2_ws/install/btcpp_ros2_interfaces/lib/python3.12/site-packages",
+        "/opt/ros/jazzy/lib/python3.12/site-packages"
+    ]
+}
