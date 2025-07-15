@@ -46,18 +46,18 @@ def quaternion_to_euler(x, y, z, w):
 def generate_placeholder_pixmap(text, width=320, height=240):
     """Returns a QPixmap with modern gradient background and styled text"""
     image = QImage(width, height, QImage.Format_RGB32)
-    
+
     # Create gradient background
     painter = QPainter(image)
     gradient = QLinearGradient(0, 0, width, height)
     gradient.setColorAt(0, QColor(45, 45, 45))
     gradient.setColorAt(1, QColor(25, 25, 25))
     painter.fillRect(0, 0, width, height, QBrush(gradient))
-    
+
     # Draw border
     painter.setPen(QColor(70, 130, 180))
     painter.drawRect(0, 0, width-1, height-1)
-    
+
     # Draw text
     painter.setPen(QColor(200, 200, 200))
     font = QFont("Arial", 8, QFont.Bold)
@@ -74,7 +74,7 @@ class AnimatedLabel(QLabel):
         super().__init__(text, parent)
         self.animation = None
         self.pending_text = ""
-    
+
     def animate_update(self, new_text):
         """Animate text change with fade effect"""
         if self.text() != new_text:
@@ -82,24 +82,24 @@ class AnimatedLabel(QLabel):
             if self.animation is not None:
                 self.animation.stop()
                 self.animation.deleteLater()
-            
+
             self.animation = QPropertyAnimation(self, b"windowOpacity")
             self.animation.setDuration(200)
             self.animation.setStartValue(1.0)
             self.animation.setEndValue(0.7)
             self.animation.finished.connect(self._finish_animation)
             self.animation.start()
-    
+
     def _finish_animation(self):
         """Complete the animation by setting new text and fading back in"""
         if self.pending_text:
             self.setText(self.pending_text)
             self.pending_text = ""
-        
+
         if self.animation is not None:
             self.animation.stop()
             self.animation.deleteLater()
-        
+
         self.animation = QPropertyAnimation(self, b"windowOpacity")
         self.animation.setDuration(200)
         self.animation.setStartValue(0.7)
@@ -113,7 +113,7 @@ class StatusIndicator(QFrame):
         super().__init__(parent)
         self.setFixedSize(20, 20)
         self.status_color = QColor(128, 128, 128)  # Default gray
-        
+
     def set_status(self, status):
         """Set status color: 'good', 'warning', 'error', 'inactive'"""
         colors = {
@@ -124,7 +124,7 @@ class StatusIndicator(QFrame):
         }
         self.status_color = colors.get(status, colors['inactive'])
         self.update()
-    
+
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
@@ -168,15 +168,15 @@ class PantherSensorNode(Node):
         self.create_subscription(Bool, '/hardware/e_stop', self.estop_cb, 10)
         self.create_subscription(TwistStamped, '/cmd_vel', self.cmd_cb, 10)
 
-        self.create_subscription(Image, '/lights/channel_1_frame', self.callback_factory('front'), qos_profile_sensor_data)
+        self.create_subscription(Image, '/front_cam/zed_node/rgb/image_rect_color', self.callback_factory('front'), qos_profile_sensor_data)
         self.create_subscription(Image, '/back_cam/zed_node/rgb/image_rect_color', self.callback_factory('back'), qos_profile_sensor_data)
         self.create_subscription(Image, '/left_cam/zed_node/rgb/image_rect_color', self.callback_factory('left'), qos_profile_sensor_data)
         self.create_subscription(Image, '/right_cam/zed_node/rgb/image_rect_color', self.callback_factory('right'), qos_profile_sensor_data)
 
         #lidar subscription
-        self.create_subscription( PointCloud2, '/lidar/velodyne_points', self.lidar_cb,10)
+        self.create_subscription(PointCloud2, '/lidar/velodyne_points', self.lidar_cb,10)
 
-    
+
     def battery_cb(self, msg): self.battery = msg
     def imu_cb(self, msg):     self.imu = msg
     def odom_cb(self, msg):    self.odom = msg
@@ -196,7 +196,7 @@ class PantherSensorNode(Node):
                 cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
                 h, w, ch = cv_image.shape
                 bytes_per_line = ch * w
-               
+
                 qt_image = QImage(cv_image.data, w, h, bytes_per_line, QImage.Format_BGR888)
                 pixmap = QPixmap.fromImage(qt_image)
                 self.image_signal.update.emit(key, pixmap)
@@ -210,7 +210,7 @@ class PantherSensorNode(Node):
 class PantherDashboard(QMainWindow):
     """Enhanced GUI class with modern styling"""
     def __init__(self, node, image_signal):
-        
+
         super().__init__()
 
 
@@ -220,7 +220,7 @@ class PantherDashboard(QMainWindow):
         self.drive_timer = QTimer()
         self.drive_timer.timeout.connect(self.send_cmd_vel)
         self.drive_timer.start(100)
-        
+
         self.MAX_IMG_WIDTH = 300
         self.MAX_IMG_HEIGHT = 200
         self.MIN_IMG_WIDTH = 240
@@ -229,7 +229,7 @@ class PantherDashboard(QMainWindow):
         self.node = node
         self.setWindowTitle("Panther Robot Dashboard")
         self.setMinimumSize(1200, 800)
-        
+
         # Set modern dark theme
         self.setStyleSheet("""
             QMainWindow {
@@ -254,7 +254,7 @@ class PantherDashboard(QMainWindow):
                 color: #3498DB;
             }
         """)
-        
+
         self.image_signal = image_signal
         self.image_signal.update.connect(self.update_feed)
         self.image_signal.update_lidar.connect(self.update_lidar_vtk)
@@ -297,10 +297,10 @@ class PantherDashboard(QMainWindow):
         """Setup the main UI layout"""
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
-        
+
         # Main splitter for resizable panels
         main_splitter = QSplitter(Qt.Vertical)
-        
+
         # Create a container for top layout
         top_container = QWidget()
         top_layout = QHBoxLayout(top_container)
@@ -318,14 +318,14 @@ class PantherDashboard(QMainWindow):
 
         # Add to splitter
         main_splitter.addWidget(top_scroll)
-        
+
         # Bottom section: LiDAR
         lidar_group = self.create_lidar_section()
         main_splitter.addWidget(lidar_group)
-        
+
         # Set initial sizes
         main_splitter.setSizes([400, 300])
-        
+
         # Main layout
         main_layout = QVBoxLayout(central_widget)
         main_layout.addWidget(main_splitter)
@@ -336,18 +336,18 @@ class PantherDashboard(QMainWindow):
         group = QGroupBox("Camera Feeds")
         layout = QGridLayout(group)
         layout.setSpacing(5)
-        
+
         cameras = [
             ("Front Camera", 0, 0, "front"),
             ("Back Camera", 0, 1, "back"),
             ("Left Camera", 1, 0, "left"),
             ("Right Camera", 1, 1, "right")
         ]
-        
+
         for name, row, col, key in cameras:
             frame = self.create_camera_widget(name, key)
             layout.addWidget(frame, row, col)
-            
+
         return group
 
     def create_camera_widget(self, name, key):
@@ -363,12 +363,12 @@ class PantherDashboard(QMainWindow):
                 padding: 7px;
             }
         """)
-        
+
         layout = QVBoxLayout(frame)
-        
+
         # Header with title and status
         header = QHBoxLayout()
-        
+
         title = QLabel(name)
         title.setStyleSheet("""
             QLabel {
@@ -380,17 +380,17 @@ class PantherDashboard(QMainWindow):
             }
         """)
         title.setAlignment(Qt.AlignLeft)
-        
+
         status = StatusIndicator()
         status.set_status('inactive')
         self.status_indicators[key] = status
-        
+
         header.addWidget(title)
         header.addStretch()
         header.addWidget(status)
-        
+
         layout.addLayout(header)
-        
+
         # Image display
         image_label = QLabel()
         image_label.setAlignment(Qt.AlignCenter)
@@ -405,10 +405,10 @@ class PantherDashboard(QMainWindow):
             }
         """)
         image_label.setPixmap(generate_placeholder_pixmap(f"Waiting for {name}..."))
-        
+
         layout.addWidget(image_label)
         self.feeds[key] = image_label
-        
+
         return frame
 
     def create_sensor_section(self):
@@ -416,11 +416,11 @@ class PantherDashboard(QMainWindow):
         group = QGroupBox("Sensor Data")
         layout = QVBoxLayout(group)
         layout.setSpacing(10)
-        
+
         # Battery with progress bar
         battery_frame = self.create_battery_widget()
         layout.addWidget(battery_frame)
-        
+
         # Other sensors
         self.sensor_labels = {}
         sensors = [
@@ -429,7 +429,7 @@ class PantherDashboard(QMainWindow):
             ('cmd', 'Velocity', 'Velocity: --'),
             ('e_stop', 'Emergency Stop', 'Emergency Stop: --')
         ]
-        
+
         # Keyboard control info
         keyboard_label = QLabel("Use W/A/S/D keys to drive the rover")
         keyboard_label.setStyleSheet("""
@@ -447,15 +447,10 @@ class PantherDashboard(QMainWindow):
         layout.addWidget(keyboard_label)
 
         for key, title, default_text in sensors:
-            # This line now correctly receives the two items
             frame, label = self.create_sensor_widget(title, default_text)
-            
-            # Store the label for later updates
             self.sensor_labels[key] = label
-            
-            # Add the container frame to the layout
             layout.addWidget(frame)
-            
+
         layout.addStretch()
         return group
 
@@ -471,22 +466,22 @@ class PantherDashboard(QMainWindow):
                 padding: 10px;
             }
         """)
-        
+
         layout = QVBoxLayout(frame)
-        
+
         # Header
         header = QHBoxLayout()
         title = QLabel("Battery")
         title.setStyleSheet("color: #ECF0F1; font-size: 16px; font-weight: bold;")
-        
+
         self.battery_status = StatusIndicator()
         self.battery_status.set_status('inactive')
-        
+
         header.addWidget(title)
         header.addStretch()
         header.addWidget(self.battery_status)
         layout.addLayout(header)
-        
+
         # Progress bar
         self.battery_progress = QProgressBar()
         self.battery_progress.setRange(0, 100)
@@ -506,18 +501,18 @@ class PantherDashboard(QMainWindow):
             }
         """)
         layout.addWidget(self.battery_progress)
-        
+
         # Voltage label
         self.battery_voltage = QLabel("Voltage: --")
         self.battery_voltage.setStyleSheet("color: #BDC3C7; font-size: 16px;")
         layout.addWidget(self.battery_voltage)
-        
+
         return frame
 
     def create_sensor_widget(self, title, default_text):
         """Create a sensor display widget"""
         frame = QFrame()
-        frame.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)  # allow vertical expansion
+        frame.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
         frame.setStyleSheet("""
             QFrame {
                 background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
@@ -528,9 +523,9 @@ class PantherDashboard(QMainWindow):
                 margin: 2px;
             }
         """)
-        
+
         layout = QVBoxLayout(frame)
-        
+
         # Title
         title_label = QLabel(title)
         title_label.setStyleSheet("""
@@ -545,7 +540,7 @@ class PantherDashboard(QMainWindow):
         title_label.setWordWrap(True)
         title_label.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
         layout.addWidget(title_label)
-        
+
         # Data label
         data_label = QLabel(default_text)
         data_label.setStyleSheet("""
@@ -560,48 +555,67 @@ class PantherDashboard(QMainWindow):
         data_label.setWordWrap(True)
         data_label.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
         layout.addWidget(data_label)
-        
-        # *** THIS IS THE LINE YOU NEED TO CHANGE ***
-        # It must return both the frame and the label.
+
         return frame, data_label
 
     def create_lidar_section(self):
-        """Create the LiDAR visualization section"""
+        """Create the LiDAR visualization section with an optimized pipeline."""
         group = QGroupBox("LiDAR Point Cloud")
         layout = QVBoxLayout(group)
-        
+
         # VTK widget setup
         self.vtk_widget = QVTKRenderWindowInteractor(group)
         self.vtk_widget.setMinimumHeight(300)
         self.renderer = vtk.vtkRenderer()
         self.vtk_widget.GetRenderWindow().AddRenderer(self.renderer)
-        
-        # Setup renderer
-        self.renderer.SetBackground(0.1, 0.1, 0.15)  # Dark blue background
-        
+        self.renderer.SetBackground(0.1, 0.1, 0.15)
+
         # Add grid
         self.grid_actor = self._add_grid()
         self.renderer.AddActor(self.grid_actor)
-        
-        # Add placeholder text
-        text_actor = vtk.vtkTextActor()
-        text_actor.SetInput("Waiting for LiDAR data...")
-        text_actor.GetTextProperty().SetFontSize(18)
-        text_actor.GetTextProperty().SetColor(0.8, 0.8, 0.8)
-        text_actor.SetDisplayPosition(50, 50)
-        self.renderer.AddActor2D(text_actor)
-        self.placeholder_text_actor = text_actor
-        
+
+        # Initialize VTK pipeline objects for LiDAR points
+        self.lidar_points = vtk.vtkPoints()
+        self.lidar_polydata = vtk.vtkPolyData()
+        self.lidar_polydata.SetPoints(self.lidar_points)
+
+        # Create vertex filter to render points
+        self.vertex_filter = vtk.vtkVertexGlyphFilter()
+        self.vertex_filter.SetInputData(self.lidar_polydata)
+
+        # Create mapper and actor
+        self.lidar_mapper = vtk.vtkPolyDataMapper()
+        self.lidar_mapper.SetInputConnection(self.vertex_filter.GetOutputPort())
+
+        self.lidar_actor = vtk.vtkActor()
+        self.lidar_actor.SetMapper(self.lidar_mapper)
+        self.lidar_actor.GetProperty().SetPointSize(3)
+        self.lidar_actor.GetProperty().SetColor(0.2, 0.8, 1.0)  # Bright cyan
+        self.renderer.AddActor(self.lidar_actor)
+
+        # Set up camera
+        camera = self.renderer.GetActiveCamera()
+        camera.SetPosition(0, -10, 5)  # Position behind and above
+        camera.SetFocalPoint(0, 0, 0)  # Look at the origin
+        camera.SetViewUp(0, 0, 1)      # Z is up
+        self.renderer.ResetCameraClippingRange()
+
+        # Initialize and start the VTK widget
         self.vtk_widget.Initialize()
         self.vtk_widget.Start()
-        
-        # Render timer
+
+        # Timer for rendering
         self.vtk_timer = QTimer()
-        self.vtk_timer.timeout.connect(self.vtk_widget.GetRenderWindow().Render)
-        self.vtk_timer.start(1000)
-        
+        self.vtk_timer.timeout.connect(self.render_vtk)
+        self.vtk_timer.start(33)  # ~30 FPS
+
         layout.addWidget(self.vtk_widget)
         return group
+
+    def render_vtk(self):
+        """Render the VTK scene"""
+        if hasattr(self, 'vtk_widget') and self.vtk_widget.GetRenderWindow():
+            self.vtk_widget.GetRenderWindow().Render()
 
     def _add_grid(self, spacing=1.0, extent=10.0):
         """Creates a VTK grid actor on the XY plane with better styling"""
@@ -612,9 +626,10 @@ class PantherDashboard(QMainWindow):
         end = extent
         id_counter = 0
 
+        # Create grid lines
         for i in range(num_lines):
             pos = start + i * spacing
-            # X-direction lines
+            # X-direction lines (parallel to X-axis)
             points.InsertNextPoint(pos, start, 0)
             points.InsertNextPoint(pos, end, 0)
             lines.InsertNextCell(2)
@@ -622,7 +637,7 @@ class PantherDashboard(QMainWindow):
             lines.InsertCellPoint(id_counter + 1)
             id_counter += 2
 
-            # Y-direction lines
+            # Y-direction lines (parallel to Y-axis)
             points.InsertNextPoint(start, pos, 0)
             points.InsertNextPoint(end, pos, 0)
             lines.InsertNextCell(2)
@@ -630,12 +645,14 @@ class PantherDashboard(QMainWindow):
             lines.InsertCellPoint(id_counter + 1)
             id_counter += 2
 
-        grid_poly = vtk.vtkPolyData()
-        grid_poly.SetPoints(points)
-        grid_poly.SetLines(lines)
+        # Create polydata for grid
+        grid_polydata = vtk.vtkPolyData()
+        grid_polydata.SetPoints(points)
+        grid_polydata.SetLines(lines)
 
+        # Create mapper and actor
         mapper = vtk.vtkPolyDataMapper()
-        mapper.SetInputData(grid_poly)
+        mapper.SetInputData(grid_polydata)
 
         actor = vtk.vtkActor()
         actor.SetMapper(mapper)
@@ -653,10 +670,10 @@ class PantherDashboard(QMainWindow):
         if n.battery is not None:
             percent = max(0, n.battery.percentage * 100 if n.battery.percentage >= 0 else 0)
             voltage = n.battery.voltage
-            
+
             self.battery_progress.setValue(int(percent))
             self.battery_voltage.setText(f"Voltage: {voltage:.1f} V")
-            
+
             # Update status based on battery level
             if percent > 50:
                 self.battery_status.set_status('good')
@@ -723,59 +740,52 @@ class PantherDashboard(QMainWindow):
             self.sensor_labels['e_stop'].setText("Emergency Stop: --")
 
     def update_lidar_vtk(self, points):
-        """Update the VTK renderer with LiDAR data"""
-        # Remove placeholder if it exists
-        if hasattr(self, 'placeholder_text_actor'):
-            self.renderer.RemoveActor2D(self.placeholder_text_actor)
-            del self.placeholder_text_actor
+        """Update the VTK renderer with LiDAR data using an optimized pipeline."""
+        if not points:
+            return
 
-        # Remove previous lidar actor if exists
-        if hasattr(self, 'lidar_actor'):
-            self.renderer.RemoveActor(self.lidar_actor)
-
-        # Create vtkPoints
-        vtk_points = vtk.vtkPoints()
-        for x, y, z in points:
-            vtk_points.InsertNextPoint(x, y, z)
-
-        # Create vtkPolyData
-        poly_data = vtk.vtkPolyData()
-        poly_data.SetPoints(vtk_points)
-
-        vertex_filter = vtk.vtkVertexGlyphFilter()
-        vertex_filter.SetInputData(poly_data)
-        vertex_filter.Update()
-
-        mapper = vtk.vtkPolyDataMapper()
-        mapper.SetInputConnection(vertex_filter.GetOutputPort())
-
-        actor = vtk.vtkActor()
-        actor.SetMapper(mapper)
-        actor.GetProperty().SetPointSize(3)
-        actor.GetProperty().SetColor(0.2, 0.8, 1.0)  # Bright cyan
-        actor.GetProperty().SetOpacity(0.8)
-
-        self.renderer.AddActor(actor)
-        self.renderer.ResetCamera()
-        self.lidar_actor = actor
-
-        self.vtk_widget.GetRenderWindow().Render()
+        # Clear existing points
+        self.lidar_points.Reset()
+        
+        # Add new points
+        self.lidar_points.SetNumberOfPoints(len(points))
+        for i, (x, y, z) in enumerate(points):
+            self.lidar_points.SetPoint(i, x, y, z)
+        
+        # Update the polydata
+        self.lidar_polydata.SetPoints(self.lidar_points)
+        
+        # Create vertices for each point
+        verts = vtk.vtkCellArray()
+        for i in range(len(points)):
+            verts.InsertNextCell(1)
+            verts.InsertCellPoint(i)
+        self.lidar_polydata.SetVerts(verts)
+        
+        # Mark as modified to trigger pipeline update
+        self.lidar_polydata.Modified()
+        
+        # Reset camera to show all data
+        if len(points) > 0:
+            self.renderer.ResetCamera()
+            self.renderer.GetActiveCamera().Dolly(1.2)
+            self.renderer.ResetCameraClippingRange()
 
     def update_feed(self, key, pixmap):
         """Update camera feed with status indicator"""
         if key in self.feeds:
             label = self.feeds[key]
-            
+
             # Scale image
             scaled_pixmap = pixmap.scaled(
                 self.MAX_IMG_WIDTH,
                 self.MAX_IMG_HEIGHT,
                 Qt.KeepAspectRatio,
-                Qt.FastTransformation  # Faster, less CPU-intensive, replaced Qt.SmoothTransformation
+                Qt.FastTransformation
             )
-            
+
             label.setPixmap(scaled_pixmap)
-            
+
             # Update status indicator
             if key in self.status_indicators:
                 self.status_indicators[key].set_status('good')
@@ -790,13 +800,13 @@ def main():
     node = PantherSensorNode(image_signal)
 
     app = QApplication(sys.argv)
-    
+
     # Set application style
     app.setStyle('Fusion')
-    
+
     gui = PantherDashboard(node, image_signal)
     gui.show()
-    
+
     # Force VTK render after window appears
     QTimer.singleShot(100, lambda: gui.vtk_widget.GetRenderWindow().Render())
 
@@ -808,6 +818,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-
-
