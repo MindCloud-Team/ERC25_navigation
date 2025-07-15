@@ -5,6 +5,8 @@ import math
 import rclpy
 import vtk
 
+from rclpy.qos import qos_profile_sensor_data
+
 from rclpy.node import Node
 from cv_bridge import CvBridge
 from sensor_msgs.msg import BatteryState, Imu, CompressedImage, PointCloud2, Image
@@ -166,10 +168,10 @@ class PantherSensorNode(Node):
         self.create_subscription(Bool, '/hardware/e_stop', self.estop_cb, 10)
         self.create_subscription(TwistStamped, '/cmd_vel', self.cmd_cb, 10)
 
-        self.create_subscription(Image, '/front_cam/zed_node/rgb/image_rect_color', self.callback_factory('front'), 10)
-        self.create_subscription(Image, '/back_cam/zed_node/rgb/image_rect_color', self.callback_factory('back'), 10)
-        self.create_subscription(Image, '/left_cam/zed_node/rgb/image_rect_color', self.callback_factory('left'), 10)
-        self.create_subscription(Image, '/right_cam/zed_node/rgb/image_rect_color', self.callback_factory('right'), 10)
+        self.create_subscription(Image, '/lights/channel_1_frame', self.callback_factory('front'), qos_profile_sensor_data)
+        self.create_subscription(Image, '/back_cam/zed_node/rgb/image_rect_color', self.callback_factory('back'), qos_profile_sensor_data)
+        self.create_subscription(Image, '/left_cam/zed_node/rgb/image_rect_color', self.callback_factory('left'), qos_profile_sensor_data)
+        self.create_subscription(Image, '/right_cam/zed_node/rgb/image_rect_color', self.callback_factory('right'), qos_profile_sensor_data)
 
         #lidar subscription
         self.create_subscription( PointCloud2, '/lidar/velodyne_points', self.lidar_cb,10)
@@ -219,14 +221,14 @@ class PantherDashboard(QMainWindow):
         self.drive_timer.timeout.connect(self.send_cmd_vel)
         self.drive_timer.start(100)
         
-        self.MAX_IMG_WIDTH = 400
-        self.MAX_IMG_HEIGHT = 300
-        self.MIN_IMG_WIDTH = 320
-        self.MIN_IMG_HEIGHT = 240
+        self.MAX_IMG_WIDTH = 300
+        self.MAX_IMG_HEIGHT = 200
+        self.MIN_IMG_WIDTH = 240
+        self.MIN_IMG_HEIGHT = 180
 
         self.node = node
         self.setWindowTitle("Panther Robot Dashboard")
-        self.setMinimumSize(2800, 2000)
+        self.setMinimumSize(1200, 800)
         
         # Set modern dark theme
         self.setStyleSheet("""
@@ -235,20 +237,20 @@ class PantherDashboard(QMainWindow):
                     stop:0 #2C3E50, stop:1 #34495E);
             }
             QGroupBox {
-                font-size: 30px;
+                font-size: 18px;
                 font-weight: bold;
                 color: #ECF0F1;
                 border: 2px solid #3498DB;
-                border-radius: 10px;
-                margin: 10px 0px;
-                padding-top: 20px;
+                border-radius: 5px;
+                margin: 5px 0px;
+                padding-top: 10px;
                 background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
                     stop:0 #34495E, stop:1 #2C3E50);
             }
             QGroupBox::title {
                 subcontrol-origin: margin;
                 left: 10px;
-                padding: 0 10px 0 10px;
+                padding: 05px 0 5px;
                 color: #3498DB;
             }
         """)
@@ -299,26 +301,30 @@ class PantherDashboard(QMainWindow):
         # Main splitter for resizable panels
         main_splitter = QSplitter(Qt.Vertical)
         
-        # Top section: Cameras and Sensors
-        top_widget = QWidget()
-        top_layout = QHBoxLayout(top_widget)
-        
-        # Camera section
+        # Create a container for top layout
+        top_container = QWidget()
+        top_layout = QHBoxLayout(top_container)
+        top_layout.setContentsMargins(5, 5, 5, 5)
+
         camera_group = self.create_camera_section()
-        top_layout.addWidget(camera_group, 2)  # 2/3 of width
-        
-        # Sensor section
         sensor_group = self.create_sensor_section()
-        top_layout.addWidget(sensor_group, 1)  # 1/3 of width
-        
-        main_splitter.addWidget(top_widget)
+        top_layout.addWidget(camera_group, 2)
+        top_layout.addWidget(sensor_group, 1)
+
+        # Wrap it in a scroll area
+        top_scroll = QScrollArea()
+        top_scroll.setWidgetResizable(True)
+        top_scroll.setWidget(top_container)
+
+        # Add to splitter
+        main_splitter.addWidget(top_scroll)
         
         # Bottom section: LiDAR
         lidar_group = self.create_lidar_section()
         main_splitter.addWidget(lidar_group)
         
         # Set initial sizes
-        main_splitter.setSizes([500, 400])
+        main_splitter.setSizes([400, 300])
         
         # Main layout
         main_layout = QVBoxLayout(central_widget)
@@ -329,7 +335,7 @@ class PantherDashboard(QMainWindow):
         """Create the camera feeds section"""
         group = QGroupBox("Camera Feeds")
         layout = QGridLayout(group)
-        layout.setSpacing(15)
+        layout.setSpacing(5)
         
         cameras = [
             ("Front Camera", 0, 0, "front"),
@@ -354,7 +360,7 @@ class PantherDashboard(QMainWindow):
                     stop:0 #3A4A5C, stop:1 #2C3E50);
                 border: 2px solid #4A90E2;
                 border-radius: 15px;
-                padding: 10px;
+                padding: 7px;
             }
         """)
         
@@ -367,7 +373,7 @@ class PantherDashboard(QMainWindow):
         title.setStyleSheet("""
             QLabel {
                 color: #ECF0F1;
-                font-size: 30px;
+                font-size: 16px;
                 font-weight: bold;
                 background: transparent;
                 border: none;
@@ -429,7 +435,7 @@ class PantherDashboard(QMainWindow):
         keyboard_label.setStyleSheet("""
             QLabel {
                 color: #ECF0F1;
-                font-size: 30px;
+                font-size: 16px;
                 font-weight: bold;
                 padding: 10px;
                 background: #2C3E50;
@@ -471,7 +477,7 @@ class PantherDashboard(QMainWindow):
         # Header
         header = QHBoxLayout()
         title = QLabel("Battery")
-        title.setStyleSheet("color: #ECF0F1; font-size: 30px; font-weight: bold;")
+        title.setStyleSheet("color: #ECF0F1; font-size: 16px; font-weight: bold;")
         
         self.battery_status = StatusIndicator()
         self.battery_status.set_status('inactive')
@@ -503,7 +509,7 @@ class PantherDashboard(QMainWindow):
         
         # Voltage label
         self.battery_voltage = QLabel("Voltage: --")
-        self.battery_voltage.setStyleSheet("color: #BDC3C7; font-size: 30px;")
+        self.battery_voltage.setStyleSheet("color: #BDC3C7; font-size: 16px;")
         layout.addWidget(self.battery_voltage)
         
         return frame
@@ -511,6 +517,7 @@ class PantherDashboard(QMainWindow):
     def create_sensor_widget(self, title, default_text):
         """Create a sensor display widget"""
         frame = QFrame()
+        frame.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)  # allow vertical expansion
         frame.setStyleSheet("""
             QFrame {
                 background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
@@ -529,12 +536,14 @@ class PantherDashboard(QMainWindow):
         title_label.setStyleSheet("""
             QLabel {
                 color: #ECF0F1;
-                font-size: 30px;
+                font-size: 16px;
                 font-weight: bold;
                 background: transparent;
                 border: none;
             }
         """)
+        title_label.setWordWrap(True)
+        title_label.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
         layout.addWidget(title_label)
         
         # Data label
@@ -542,13 +551,14 @@ class PantherDashboard(QMainWindow):
         data_label.setStyleSheet("""
             QLabel {
                 color: #BDC3C7;
-                font-size: 30px;
+                font-size: 16px;
                 background: transparent;
                 border: none;
                 padding: 5px;
             }
         """)
         data_label.setWordWrap(True)
+        data_label.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
         layout.addWidget(data_label)
         
         # *** THIS IS THE LINE YOU NEED TO CHANGE ***
@@ -702,7 +712,7 @@ class PantherDashboard(QMainWindow):
             self.sensor_labels['e_stop'].setStyleSheet(f"""
                 QLabel {{
                     color: {color};
-                    font-size: 30px;
+                    font-size: 16px;
                     font-weight: bold;
                     background: transparent;
                     border: none;
@@ -761,7 +771,7 @@ class PantherDashboard(QMainWindow):
                 self.MAX_IMG_WIDTH,
                 self.MAX_IMG_HEIGHT,
                 Qt.KeepAspectRatio,
-                Qt.SmoothTransformation
+                Qt.FastTransformation  # Faster, less CPU-intensive, replaced Qt.SmoothTransformation
             )
             
             label.setPixmap(scaled_pixmap)
@@ -771,7 +781,7 @@ class PantherDashboard(QMainWindow):
                 self.status_indicators[key].set_status('good')
 
     def spin_once(self):
-        rclpy.spin_once(self.node, timeout_sec=0.01)
+        rclpy.spin_once(self.node, timeout_sec=0.001)
 
 
 def main():
@@ -798,5 +808,6 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 

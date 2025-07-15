@@ -24,6 +24,7 @@ setup(
             'batgui = gui_pkg.batgui:main',
             'new_gui = gui_pkg.new_gui:main',
             'joy_to_motion = gui_pkg.joy_to_motion:main',
+            'keyboard_to_twist = gui_pkg.keyboard_to_twist:main',
         ],
     },
 )
