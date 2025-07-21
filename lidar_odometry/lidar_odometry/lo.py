@@ -1,10 +1,10 @@
 #!/home/ibrahim/venvs/rosenv/bin/python3    # Change To Your Default Interpreter
 """
-This script implements a LiDAR-based odometry node for ROS2.
+Optimized LiDAR-based odometry node for ROS2.
 
-It uses a vectorized implementation of the Generalized Iterative Closest Point (G-ICP)
-algorithm to estimate the robot's motion by aligning consecutive point cloud scans.
-The resulting pose is published as a standard odometry message.
+This script combines your excellent custom G-ICP implementation with Open3D optimizations
+for preprocessing and other operations. It keeps the vectorized G-ICP algorithm while
+optimizing point cloud processing, downsampling, and correspondence finding.
 """
 from sensor_msgs_py import point_cloud2 as pc2
 from sensor_msgs.msg import PointCloud2
@@ -12,335 +12,501 @@ import rclpy
 from rclpy.node import Node
 import numpy as np
 import open3d as o3d
-from scipy.spatial import KDTree
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Point, Quaternion
 from scipy.spatial.transform import Rotation as R
+from scipy.spatial import KDTree
+import time
 
-class LidarOdometry(Node):
+class OptimizedLidarOdometry(Node):
     """
-    A ROS2 node for calculating odometry from LiDAR point clouds.
+    Optimized ROS2 node for calculating odometry from LiDAR point clouds.
     
-    This node subscribes to a PointCloud2 topic, performs G-ICP to find the
-    relative transform between sequential scans, accumulates the transforms to
-    maintain a global pose, and publishes the result as a nav_msgs/Odometry message.
+    Uses your custom vectorized G-ICP implementation with Open3D optimizations
+    for preprocessing operations like downsampling, normal estimation, and outlier removal.
 
     Attributes:
-        pcd (o3d.geometry.PointCloud): An Open3D point cloud object, reused for processing.
-        prev_points (numpy.ndarray): Stores the downsampled points from the previous scan, used as the target for ICP.
-        max_iterations (int): The maximum number of iterations for the G-ICP algorithm.
-        min_delta_err (float): The convergence threshold for G-ICP based on the norm of the twist.
-        global_pose (numpy.ndarray): The 4x4 transformation matrix representing the estimated global pose of the robot.
-        last_timestamp (builtin_interfaces.msg.Time): The timestamp of the previously processed message, used for calculating dt for velocity.
-        estimates (list): A history of global pose matrices, used for calculating velocity.
-        pcd_sub (rclpy.subscription.Subscription): The subscriber for the input point cloud topic.
-        odom_pub (rclpy.publisher.Publisher): The publisher for the calculated odometry message.
-
-    ROS Subscribers:
-        /lidar/velodyne_points (sensor_msgs.msg.PointCloud2)
-
-    ROS Publishers:
-        /lidar/odom (nav_msgs.msg.Odometry)
+        prev_cloud (o3d.geometry.PointCloud): Previous preprocessed point cloud
+        prev_points (numpy.ndarray): Previous point array for G-ICP
+        prev_normals (numpy.ndarray): Previous normals for G-ICP
+        prev_covariances (numpy.ndarray): Previous covariances for G-ICP
+        global_pose (numpy.ndarray): 4x4 transformation matrix for global pose
+        pose_history (list): History of poses for velocity calculation
+        timestamp_history (list): History of timestamps
     """
     
     def __init__(self):
-        """
-        Initializes the LidarOdometry node.
+        """Initialize the optimized LiDAR odometry node."""
+        super().__init__("optimized_lidar_odom")
         
-        Sets up initial state variables, parameters, and ROS publishers/subscribers.
-        """
-        super().__init__("lidar_odom")
-        self.pcd = o3d.geometry.PointCloud()
-
-        self.prev_points = []
-        self.max_iterations = 30
-        self.min_delta_err = 1e-6
+        # Parameters - can be made configurable via ROS parameters
+        self.declare_parameters(
+            namespace='',
+            parameters=[
+                ('voxel_size', 0.2),
+                ('normal_radius', 0.5),
+                ('normal_max_nn', 20),
+                ('max_iterations', 30),
+                ('min_delta_err', 1e-6),
+                ('max_correspondence_distance', 1.0),
+                ('statistical_outlier_nb_neighbors', 20),
+                ('statistical_outlier_std_ratio', 2.0),
+            ]
+        )
+        
+        # Get parameters
+        self.voxel_size = self.get_parameter('voxel_size').get_parameter_value().double_value
+        self.normal_radius = self.get_parameter('normal_radius').get_parameter_value().double_value
+        self.normal_max_nn = self.get_parameter('normal_max_nn').get_parameter_value().integer_value
+        self.max_iterations = self.get_parameter('max_iterations').get_parameter_value().integer_value
+        self.min_delta_err = self.get_parameter('min_delta_err').get_parameter_value().double_value
+        self.max_correspondence_distance = self.get_parameter('max_correspondence_distance').get_parameter_value().double_value
+        self.outlier_nb_neighbors = self.get_parameter('statistical_outlier_nb_neighbors').get_parameter_value().integer_value
+        self.outlier_std_ratio = self.get_parameter('statistical_outlier_std_ratio').get_parameter_value().double_value
+        
+        # State variables
+        self.prev_cloud = None
+        self.prev_points = None
+        self.prev_normals = None
+        self.prev_covariances = None
         self.global_pose = np.eye(4)
+        self.pose_history = []
+        self.timestamp_history = []
         
-        self.last_timestamp = None
-        self.estimates = []
-
-        self.pcd_sub = self.create_subscription(PointCloud2,
-                                                 "/lidar/velodyne_points",
-                                                  self.process_sequence,
-                                                  qos_profile=10)
+        # Performance monitoring
+        self.processing_times = []
+        self.frame_count = 0
+        
+        # Pre-allocate Open3D point cloud for efficiency
+        self.temp_cloud = o3d.geometry.PointCloud()
+        
+        # ROS setup
+        self.pcd_sub = self.create_subscription(
+            PointCloud2,
+            "/lidar/velodyne_points",
+            self.process_pointcloud,
+            qos_profile=10
+        )
         
         self.odom_pub = self.create_publisher(Odometry, 'lidar/odom', 10)
-
-        self.get_logger().info("Lidar Odometry Node Initialized.")
         
-    def get_pc_from_ros2_pc2_msg(self, msg):
+        # Performance monitoring timer
+        self.create_timer(5.0, self.log_performance_stats)
+        
+        self.get_logger().info("Optimized Lidar Odometry Node Initialized with Custom G-ICP")
+    
+    def ros_pointcloud_to_numpy(self, msg):
         """
-        Converts a ROS2 PointCloud2 message to a structured NumPy array of XYZ points.
-
+        Convert ROS2 PointCloud2 message to numpy array efficiently.
+        
         Args:
-            msg (sensor_msgs.msg.PointCloud2): The input point cloud message.
-
-        Returns:
-            numpy.ndarray or None: A NumPy array of shape (N, 3) containing the points,
-                                  or None if the conversion fails or results in an empty cloud.
-        """
-        self.xyz_array = pc2.read_points_numpy(msg, field_names=("x", "y", "z"), skip_nans=True)
-        if self.xyz_array.shape[0] == 0:
-            self.get_logger().error("Array is EMPTY after conversion.")
-            return None
-
-        is_finite = np.all(np.isfinite(self.xyz_array), axis=1)
-        self.clean_xyz_array = self.xyz_array[is_finite]
+            msg (sensor_msgs.msg.PointCloud2): Input point cloud message
             
-        if self.clean_xyz_array.shape[0] == 0:
-            self.get_logger().error("Array is EMPTY after cleaning NaN/Inf.")
-            return None
-        return self.clean_xyz_array
-                
-    def get_downsampled_pointcloud(self, points_np):
-        """
-        Downsamples a point cloud using a voxel grid filter to reduce computation.
-
-        Args:
-            points_np (numpy.ndarray): The input point cloud as an (N, 3) NumPy array.
-
         Returns:
-            numpy.ndarray: The downsampled point cloud as a NumPy array.
+            numpy.ndarray or None: Clean XYZ points array or None if conversion fails
+        """
+        try:
+            # Extract XYZ points using sensor_msgs_py (optimized)
+            xyz_array = pc2.read_points_numpy(msg, field_names=("x", "y", "z"), skip_nans=True)
+            
+            if xyz_array.shape[0] == 0:
+                self.get_logger().warn("Empty point cloud received")
+                return None
+            
+            # Vectorized filtering of finite points
+            valid_mask = np.all(np.isfinite(xyz_array), axis=1)
+            xyz_clean = xyz_array[valid_mask]
+            
+            if xyz_clean.shape[0] < 100:
+                self.get_logger().warn(f"Too few valid points: {xyz_clean.shape[0]}")
+                return None
+            
+            return xyz_clean
+            
+        except Exception as e:
+            self.get_logger().error(f"Error converting point cloud: {e}")
+            return None
+    
+    def preprocess_cloud_optimized(self, points_np):
+        """
+        Optimized preprocessing using Open3D for downsampling and outlier removal.
+        
+        Args:
+            points_np (numpy.ndarray): Input points array
+            
+        Returns:
+            tuple: (downsampled_points, normals, covariances) or None if failed
         """
         if points_np.shape[0] == 0:
-            self.get_logger().warn("Point cloud is empty, cannot downsample!")
-            return np.array([])
-
-        self.pcd.points = o3d.utility.Vector3dVector(points_np)
-        downpcd = self.pcd.voxel_down_sample(voxel_size=0.2)
-        return np.asarray(downpcd.points)
-            
-    def get_nearest_neighbours(self, source_points, target_points):
+            return None
+        
+        # Use pre-allocated cloud object for efficiency
+        self.temp_cloud.points = o3d.utility.Vector3dVector(points_np)
+        
+        # Efficient voxel downsampling
+        downsampled_cloud = self.temp_cloud.voxel_down_sample(self.voxel_size)
+        
+        if len(downsampled_cloud.points) < 50:
+            self.get_logger().warn("Not enough points after downsampling")
+            return None
+        
+        # Statistical outlier removal
+        if len(downsampled_cloud.points) > self.outlier_nb_neighbors:
+            clean_cloud, _ = downsampled_cloud.remove_statistical_outlier(
+                nb_neighbors=self.outlier_nb_neighbors,
+                std_ratio=self.outlier_std_ratio
+            )
+        else:
+            clean_cloud = downsampled_cloud
+        
+        if len(clean_cloud.points) < 20:
+            self.get_logger().warn("Not enough points after outlier removal")
+            return None
+        
+        # Estimate normals efficiently
+        clean_cloud.estimate_normals(
+            search_param=o3d.geometry.KDTreeSearchParamHybrid(
+                radius=self.normal_radius,
+                max_nn=self.normal_max_nn
+            )
+        )
+        
+        # Orient normals consistently
+        clean_cloud.orient_normals_consistent_tangent_plane(k=10)
+        
+        # Estimate covariances for G-ICP
+        clean_cloud.estimate_covariances(
+            search_param=o3d.geometry.KDTreeSearchParamHybrid(
+                radius=self.normal_radius,
+                max_nn=self.normal_max_nn
+            )
+        )
+        
+        # Convert back to numpy arrays
+        points = np.asarray(clean_cloud.points)
+        normals = np.asarray(clean_cloud.normals)
+        covariances = np.asarray(clean_cloud.covariances)
+        
+        return points, normals, covariances
+    
+    def get_nearest_neighbours_optimized(self, source_points, target_points):
         """
-        Finds the nearest neighbor in the target point cloud for each point in the source.
-
+        Optimized nearest neighbor search using KDTree.
+        
         Args:
-            source_points (numpy.ndarray): The source points for which to find neighbors.
-            target_points (numpy.ndarray): The target point cloud to search within.
-
+            source_points (numpy.ndarray): Source points
+            target_points (numpy.ndarray): Target points
+            
         Returns:
-            tuple[numpy.ndarray, numpy.ndarray]: A tuple containing arrays of distances
-                                                 and indices of the nearest neighbors.
+            tuple: (distances, indices) arrays
         """
         if target_points.shape[0] == 0:
             return np.array([]), np.array([])
         
+        # Use scipy's optimized KDTree
         tree = KDTree(target_points)
         distances, indices = tree.query(source_points, k=1)
         return distances, indices
-
+    
     def transformation_from_twist(self, twist):
         """
-        Converts a 6-element twist vector [tx, ty, tz, rx, ry, rz] to a 4x4 transformation matrix.
-
+        Efficient twist to transformation matrix conversion.
+        
         Args:
-            twist (numpy.ndarray): A 6x1 or (6,) array representing the twist.
-
+            twist (numpy.ndarray): 6-element twist vector
+            
         Returns:
-            numpy.ndarray: The corresponding 4x4 homogeneous transformation matrix.
+            numpy.ndarray: 4x4 transformation matrix
         """
         twist = twist.flatten()
-        rotation_vector = twist[3:6]
-        translation_vector = twist[0:3]
-        rotation = R.from_rotvec(rotation_vector)
-        r_matrix = rotation.as_matrix()
-        T_delta = np.eye(4)
-        T_delta[0:3, 0:3] = r_matrix
-        T_delta[0:3, 3] = translation_vector
-        return T_delta
-
-    def skew_symm_vectorized(self, m):
-        """
-        Efficiently creates a batch of skew-symmetric matrices from a batch of vectors.
-
-        Args:
-            m (numpy.ndarray): An (N, 3) array of vectors.
-
-        Returns:
-            numpy.ndarray: An (N, 3, 3) array of corresponding skew-symmetric matrices.
-        """
-        N = m.shape[0]
-        ss_m = np.zeros((N, 3, 3))
-        ss_m[:, 0, 1] = -m[:, 2]
-        ss_m[:, 0, 2] = m[:, 1]
-        ss_m[:, 1, 0] = m[:, 2]
-        ss_m[:, 1, 2] = -m[:, 0]
-        ss_m[:, 2, 0] = -m[:, 1]
-        ss_m[:, 2, 1] = m[:, 0]
-        return ss_m
-
-    def genz_icp(self, source_points, target_points):
-        """
-        Performs Generalized-ICP to find the rigid transformation that aligns the source
-        point cloud to the target point cloud.
-
-        Args:
-            source_points (numpy.ndarray): The source point cloud (the one that moves).
-            target_points (numpy.ndarray): The target point cloud (the fixed reference).
-
-        Returns:
-            numpy.ndarray: The 4x4 transformation matrix that aligns source to target.
-        """
-        pcd_source = o3d.geometry.PointCloud()
-        pcd_source.points = o3d.utility.Vector3dVector(source_points)
-        pcd_source.estimate_covariances(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.5, max_nn=20))
-        source_covs = np.asarray(pcd_source.covariances)
         
-        pcd_target = o3d.geometry.PointCloud()
-        pcd_target.points = o3d.utility.Vector3dVector(target_points)
-        pcd_target.estimate_covariances(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.5, max_nn=20))
-        target_covs = np.asarray(pcd_target.covariances)
-
+        # Use scipy's optimized rotation conversion
+        rotation = R.from_rotvec(twist[3:6])
+        
+        # Build transformation matrix
+        T_delta = np.eye(4)
+        T_delta[:3, :3] = rotation.as_matrix()
+        T_delta[:3, 3] = twist[:3]
+        
+        return T_delta
+    
+    def skew_symmetric_batch(self, vectors):
+        """
+        Vectorized skew-symmetric matrix computation.
+        
+        Args:
+            vectors (numpy.ndarray): (N, 3) array of vectors
+            
+        Returns:
+            numpy.ndarray: (N, 3, 3) array of skew-symmetric matrices
+        """
+        N = vectors.shape[0]
+        skew_matrices = np.zeros((N, 3, 3))
+        
+        # Vectorized assignment
+        skew_matrices[:, 0, 1] = -vectors[:, 2]
+        skew_matrices[:, 0, 2] = vectors[:, 1]
+        skew_matrices[:, 1, 0] = vectors[:, 2]
+        skew_matrices[:, 1, 2] = -vectors[:, 0]
+        skew_matrices[:, 2, 0] = -vectors[:, 1]
+        skew_matrices[:, 2, 1] = vectors[:, 0]
+        
+        return skew_matrices
+    
+    def generalized_icp_optimized(self, source_points, source_covs, target_points, target_covs):
+        """
+        Your optimized Generalized-ICP implementation.
+        
+        Args:
+            source_points (numpy.ndarray): Source point cloud
+            source_covs (numpy.ndarray): Source covariance matrices  
+            target_points (numpy.ndarray): Target point cloud
+            target_covs (numpy.ndarray): Target covariance matrices
+            
+        Returns:
+            numpy.ndarray: 4x4 transformation matrix
+        """
         T = np.eye(4)
         transformed_source = source_points.copy()
-
-        for iter_num in range(self.max_iterations):
-            R_mat = T[:3, :3]
-            distances, indices = self.get_nearest_neighbours(transformed_source, target_points)
-            valid_mask = distances < 1.0
-            if np.sum(valid_mask) < 20:
-                self.get_logger().warn("G-ICP failed: Not enough valid correspondences.")
+        
+        for iteration in range(self.max_iterations):
+            R_current = T[:3, :3]
+            
+            # Find correspondences
+            distances, indices = self.get_nearest_neighbours_optimized(transformed_source, target_points)
+            
+            # Filter valid correspondences
+            valid_mask = distances < self.max_correspondence_distance
+            num_valid = np.sum(valid_mask)
+            
+            if num_valid < 20:
+                self.get_logger().warn(f"G-ICP failed: Only {num_valid} valid correspondences")
                 return np.eye(4)
-
-            s_corr, t_corr = source_points[valid_mask], target_points[indices[valid_mask]]
-            s_cov_corr, t_cov_corr = source_covs[valid_mask], target_covs[indices[valid_mask]]
             
-            num_corr = s_corr.shape[0]
-            R_s_cov = np.einsum('ij,njk->nik', R_mat, s_cov_corr)
-            M_corr = t_cov_corr + np.einsum('nij,kj->nik', R_s_cov, R_mat.T)
-            M_inv_corr = np.linalg.inv(M_corr + np.eye(3) * 1e-8)
-
-            J_corr = np.zeros((num_corr, 3, 6))
-            J_corr[:, 0:3, 0:3] = np.eye(3)
-            J_corr[:, :, 3:] = -self.skew_symm_vectorized(s_corr)
+            # Get corresponding points and covariances
+            src_corr = source_points[valid_mask]
+            tgt_corr = target_points[indices[valid_mask]]
+            src_cov_corr = source_covs[valid_mask]
+            tgt_cov_corr = target_covs[indices[valid_mask]]
             
-            d_corr = t_corr - transformed_source[valid_mask]
+            # Compute combined covariance matrices (G-ICP formulation)
+            R_src_cov = np.einsum('ij,njk->nik', R_current, src_cov_corr)
+            combined_cov = tgt_cov_corr + np.einsum('nij,kj->nik', R_src_cov, R_current.T)
             
-            temp_a = np.einsum('nji,njk->nik', J_corr, M_inv_corr)
-            a_terms = np.einsum('nij,njk->nik', temp_a, J_corr)
-            b_terms = np.einsum('nij,nj->ni', temp_a, d_corr)
+            # Add regularization for numerical stability
+            combined_cov += np.eye(3)[None, :, :] * 1e-8
             
-            a_sum = np.sum(a_terms, axis=0)
-            b_sum = np.sum(b_terms, axis=0).reshape(6, 1)
-
             try:
-                delta_x, _,_,_ = np.linalg.lstsq(a_sum, b_sum, rcond=None)
+                # Batch inverse of covariance matrices
+                combined_cov_inv = np.linalg.inv(combined_cov)
             except np.linalg.LinAlgError:
-                self.get_logger().warn("Singular matrix in G-ICP least squares solve.")
+                self.get_logger().warn("Singular covariance matrices in G-ICP")
                 break
-
-            T_delta = self.transformation_from_twist(delta_x)
+            
+            # Build Jacobian matrices
+            num_corr = src_corr.shape[0]
+            J = np.zeros((num_corr, 3, 6))
+            J[:, :, :3] = np.eye(3)  # Translation part
+            J[:, :, 3:] = -self.skew_symmetric_batch(src_corr)  # Rotation part
+            
+            # Compute residuals
+            residuals = tgt_corr - transformed_source[valid_mask]
+            
+            # Compute weighted least squares terms
+            # A = sum(J^T * C^-1 * J), b = sum(J^T * C^-1 * r)
+            JT_Cinv = np.einsum('nji,njk->nik', J, combined_cov_inv)  # J^T * C^-1
+            A_terms = np.einsum('nij,njk->nik', JT_Cinv, J)  # (J^T * C^-1) * J
+            b_terms = np.einsum('nij,nj->ni', JT_Cinv, residuals)  # (J^T * C^-1) * r
+            
+            A = np.sum(A_terms, axis=0)
+            b = np.sum(b_terms, axis=0).reshape(-1, 1)
+            
+            # Solve for twist update
+            try:
+                delta_twist, _, _, _ = np.linalg.lstsq(A, b, rcond=None)
+                delta_twist = delta_twist.flatten()
+            except np.linalg.LinAlgError:
+                self.get_logger().warn("Singular matrix in G-ICP least squares")
+                break
+            
+            # Convert twist to transformation and update
+            T_delta = self.transformation_from_twist(delta_twist)
             T = T_delta @ T
-
+            
+            # Update transformed source points
             homog_source = np.hstack((source_points, np.ones((source_points.shape[0], 1))))
             transformed_source = (homog_source @ T.T)[:, :3]
-
-            if np.linalg.norm(delta_x) < self.min_delta_err:
-                self.get_logger().info(f"G-ICP converged after {iter_num+1} iterations.")
+            
+            # Check convergence
+            if np.linalg.norm(delta_twist) < self.min_delta_err:
+                self.get_logger().info(f"G-ICP converged after {iteration+1} iterations")
                 break
+        
         return T
-
-    def process_sequence(self, msg):
+    
+    def process_pointcloud(self, msg):
         """
-        The main callback function that processes each incoming point cloud message.
+        Main processing callback for incoming point clouds.
         
-        This method orchestrates the odometry pipeline: point cloud conversion,
-        downsampling, ICP alignment, global pose update, and odometry message publishing.
-
         Args:
-            msg (sensor_msgs.msg.PointCloud2): The incoming point cloud message from the subscriber.
+            msg (sensor_msgs.msg.PointCloud2): Input point cloud message
         """
-        raw_points = self.get_pc_from_ros2_pc2_msg(msg)
-        if raw_points is None: return
+        start_time = time.time()
         
-        down_points = self.get_downsampled_pointcloud(raw_points)
-        if down_points.shape[0] < 50:
-            self.get_logger().warn("Not enough points after downsampling, skipping frame.")
-            return
-
-        if len(self.prev_points) == 0:
-            self.get_logger().info("First frame received. Storing points as reference.")
-            self.prev_points = down_points
-            self.last_timestamp = msg.header.stamp
+        # Convert ROS message to numpy array
+        raw_points = self.ros_pointcloud_to_numpy(msg)
+        if raw_points is None:
             return
         
-        self.get_logger().info(f"Aligning current frame ({down_points.shape[0]} pts) to previous ({self.prev_points.shape[0]} pts)")
+        # Preprocess the point cloud
+        preprocess_result = self.preprocess_cloud_optimized(raw_points)
+        if preprocess_result is None:
+            return
         
-        relative_transform = self.genz_icp(down_points, self.prev_points)
+        current_points, current_normals, current_covariances = preprocess_result
         
+        # First frame initialization
+        if self.prev_points is None:
+            self.get_logger().info(f"Initializing with first frame: {current_points.shape[0]} points")
+            self.prev_points = current_points
+            self.prev_normals = current_normals
+            self.prev_covariances = current_covariances
+            self.timestamp_history.append(msg.header.stamp)
+            self.pose_history.append(self.global_pose.copy())
+            return
+        
+        # Perform G-ICP alignment
+        self.get_logger().debug(
+            f"G-ICP: {current_points.shape[0]} -> {self.prev_points.shape[0]} points"
+        )
+        
+        relative_transform = self.generalized_icp_optimized(
+            current_points, current_covariances,
+            self.prev_points, self.prev_covariances
+        )
+        
+        # Update global pose (inverse transform for proper odometry)
         self.global_pose = self.global_pose @ np.linalg.inv(relative_transform)
         
-        self.estimates.append(self.global_pose.copy())
+        # Store history
+        self.pose_history.append(self.global_pose.copy())
+        self.timestamp_history.append(msg.header.stamp)
         
-        current_timestamp = msg.header.stamp
-        odom_msg = self.create_odom_message(self.global_pose, current_timestamp)
+        # Limit history size
+        max_history = 10
+        if len(self.pose_history) > max_history:
+            self.pose_history = self.pose_history[-max_history:]
+            self.timestamp_history = self.timestamp_history[-max_history:]
+        
+        # Create and publish odometry message
+        odom_msg = self.create_odometry_message(msg.header.stamp)
         self.odom_pub.publish(odom_msg)
-
-        self.prev_points = down_points
-        self.last_timestamp = current_timestamp
         
-        current_position = self.global_pose[:3, 3]
-        self.get_logger().info(f"Global Position (x,y,z): {current_position}")
+        # Update previous data
+        self.prev_points = current_points
+        self.prev_normals = current_normals  
+        self.prev_covariances = current_covariances
         
-    def create_odom_message(self, T, timestamp_msg):
+        # Performance monitoring
+        processing_time = time.time() - start_time
+        self.processing_times.append(processing_time)
+        self.frame_count += 1
+        
+        # Log results
+        position = self.global_pose[:3, 3]
+        self.get_logger().info(
+            f"Position: [{position[0]:.2f}, {position[1]:.2f}, {position[2]:.2f}], "
+            f"Points: {current_points.shape[0]}, Processing: {processing_time*1000:.1f}ms"
+        )
+    
+    def create_odometry_message(self, timestamp):
         """
-        Creates a nav_msgs/Odometry message from a global pose matrix and timestamp.
-
+        Create nav_msgs/Odometry message from current pose and velocity.
+        
         Args:
-            T (numpy.ndarray): The 4x4 global pose matrix.
-            timestamp_msg (builtin_interfaces.msg.Time): The timestamp for the message header.
-
+            timestamp (builtin_interfaces.msg.Time): Message timestamp
+            
         Returns:
-            nav_msgs.msg.Odometry: The populated odometry message.
+            nav_msgs.msg.Odometry: Odometry message
         """
         odom = Odometry()
-        odom.header.stamp = timestamp_msg
+        odom.header.stamp = timestamp
         odom.header.frame_id = 'odom'
         odom.child_frame_id = 'base_link'
-
-        translation = T[:3, 3]
-        rotation_matrix = T[:3, :3]
-        quat = R.from_matrix(rotation_matrix).as_quat()
-
-        odom.pose.pose.position = Point(x=translation[0], y=translation[1], z=translation[2])
+        
+        # Extract position and orientation
+        position = self.global_pose[:3, 3]
+        rotation_matrix = self.global_pose[:3, :3]
+        
+        # Convert to quaternion
+        quat = R.from_matrix(rotation_matrix).as_quat()  # [x, y, z, w]
+        
+        # Set pose
+        odom.pose.pose.position = Point(x=position[0], y=position[1], z=position[2])
         odom.pose.pose.orientation = Quaternion(x=quat[0], y=quat[1], z=quat[2], w=quat[3])
-
-        if self.last_timestamp is not None and len(self.estimates) > 1:
-            dt_duration = rclpy.time.Time.from_msg(timestamp_msg) - rclpy.time.Time.from_msg(self.last_timestamp)
-            dt = dt_duration.nanoseconds / 1e9
-
+        
+        # Calculate velocities
+        if len(self.pose_history) >= 2 and len(self.timestamp_history) >= 2:
+            dt = (rclpy.time.Time.from_msg(self.timestamp_history[-1]) - 
+                  rclpy.time.Time.from_msg(self.timestamp_history[-2])).nanoseconds / 1e9
+            
             if dt > 1e-6:
-                prev_T = self.estimates[-2]
-                prev_translation = prev_T[:3, 3]
-                velocity = (translation - prev_translation) / dt
-                odom.twist.twist.linear.x = float(velocity[0])
-                odom.twist.twist.linear.y = float(velocity[1])
-                odom.twist.twist.linear.z = float(velocity[2])
-
-                prev_rotation = prev_T[:3, :3]
-                rel_rotation = rotation_matrix @ prev_rotation.T
-                rotvec = R.from_matrix(rel_rotation).as_rotvec()
-                angular_velocity = rotvec / dt
-                odom.twist.twist.angular.x = float(angular_velocity[0])
-                odom.twist.twist.angular.y = float(angular_velocity[1])
-                odom.twist.twist.angular.z = float(angular_velocity[2])
-
+                # Linear velocity
+                prev_position = self.pose_history[-2][:3, 3]
+                linear_vel = (position - prev_position) / dt
+                
+                odom.twist.twist.linear.x = float(linear_vel[0])
+                odom.twist.twist.linear.y = float(linear_vel[1])
+                odom.twist.twist.linear.z = float(linear_vel[2])
+                
+                # Angular velocity
+                prev_rotation = self.pose_history[-2][:3, :3]
+                relative_rotation = rotation_matrix @ prev_rotation.T
+                angular_vel = R.from_matrix(relative_rotation).as_rotvec() / dt
+                
+                odom.twist.twist.angular.x = float(angular_vel[0])
+                odom.twist.twist.angular.y = float(angular_vel[1])
+                odom.twist.twist.angular.z = float(angular_vel[2])
+        
+        # Set covariance estimates
+        pose_cov = np.eye(6) * 0.01  # Position and orientation uncertainty
+        twist_cov = np.eye(6) * 0.1   # Velocity uncertainty
+        
+        odom.pose.covariance = pose_cov.flatten().tolist()
+        odom.twist.covariance = twist_cov.flatten().tolist()
+        
         return odom
-         
+    
+    def log_performance_stats(self):
+        """Log performance statistics periodically."""
+        if len(self.processing_times) > 0:
+            recent_times = self.processing_times[-50:]  # Last 50 frames
+            avg_time = np.mean(recent_times)
+            max_time = np.max(recent_times)
+            min_time = np.min(recent_times)
+            hz = 1.0 / avg_time if avg_time > 0 else 0
+            
+            self.get_logger().info(
+                f"Performance Stats - Frames: {self.frame_count}, "
+                f"Avg: {avg_time*1000:.1f}ms, Min: {min_time*1000:.1f}ms, "
+                f"Max: {max_time*1000:.1f}ms, Rate: {hz:.1f}Hz"
+            )
+
+
 def main(args=None):
-    """
-    Main entry point for the Lidar odometry node.
-    """
+    """Main entry point for the optimized LiDAR odometry node."""
     rclpy.init(args=args)
-    lo = LidarOdometry()
+    
+    node = OptimizedLidarOdometry()
+    
     try:
-        rclpy.spin(lo)
+        rclpy.spin(node)
     except KeyboardInterrupt:
         pass
     finally:
-        lo.destroy_node()
+        node.destroy_node()
         rclpy.shutdown()
+
 
 if __name__ == "__main__":
     main()
