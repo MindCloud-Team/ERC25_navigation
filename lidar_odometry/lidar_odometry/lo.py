@@ -1,4 +1,4 @@
-#!/home/ibrahim/venvs/rosenv/bin/python3    # Change To Your Default Interpreter
+#!/usr/bin/env python3
 """
 This script implements a LiDAR-based odometry node for ROS2.
 
