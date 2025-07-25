@@ -10,7 +10,7 @@ System Architecture: Planning Layer
 
 ROS2 Topics:
     - Publishers:
-        - Topic: /global_planner 
+        - Topic: /global_planner
           Type: nav_msgs/Path
           Purpose: Publishes the computed global path.
     - Subscribers:
@@ -31,9 +31,15 @@ import rclpy
 from rclpy.node import Node
 from nav_msgs.msg import Path, Odometry, OccupancyGrid
 from geometry_msgs.msg import PoseStamped
-from rclpy.qos import QoSProfile, QoSDurabilityPolicy, QoSHistoryPolicy, QoSReliabilityPolicy
+from rclpy.qos import (
+    QoSProfile,
+    QoSDurabilityPolicy,
+    QoSHistoryPolicy,
+    QoSReliabilityPolicy,
+)
 import numpy as np
 import heapq
+
 
 class GlobalPlannerNode(Node):
     """
@@ -48,30 +54,31 @@ class GlobalPlannerNode(Node):
         map_resolution               : Map resolution.
         map_origin_x , map_origin_y  : Map orgin as x , y.
         current_x , current_y        : Rover's current position from odom.
-        goal_x , goal_y              : Goal position as x , y in meters.    
+        goal_x , goal_y              : Goal position as x , y in meters.
         orthogonal_step_cost         : Cost for orthogonal movement.
         diagonal_step_cost           : Cost for diagonal movement.
     """
 
     def __init__(self):
-        super().__init__('global_planner')
+        super().__init__("global_planner")
         self.get_logger().info("Global Planner Node Initialized")
 
         qos_prof = QoSProfile(
             history=QoSHistoryPolicy.KEEP_LAST,
             depth=10,
-            durability=QoSDurabilityPolicy.TRANSIENT_LOCAL
+            durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
         )
 
-        qos = QoSProfile(
-            depth=10,
-            reliability=QoSReliabilityPolicy.BEST_EFFORT
-        )
+        qos = QoSProfile(depth=10, reliability=QoSReliabilityPolicy.BEST_EFFORT)
 
         # ROS 2 Publishers & Subscribers
-        self.path_publisher = self.create_publisher(Path, 'global_planner', 10)
-        self.odom_subscriber = self.create_subscription(Odometry, '/sim_ground_truth_pose', self.odom_callback, qos)
-        self.map_subscriber = self.create_subscription(OccupancyGrid, '/map', self.map_callback, qos_prof)
+        self.path_publisher = self.create_publisher(Path, "global_planner", 10)
+        self.odom_subscriber = self.create_subscription(
+            Odometry, "/sim_ground_truth_pose", self.odom_callback, qos
+        )
+        self.map_subscriber = self.create_subscription(
+            OccupancyGrid, "/map", self.map_callback, qos_prof
+        )
 
         # Map Information (Initialized as None)
         self.map_data = None
@@ -89,8 +96,8 @@ class GlobalPlannerNode(Node):
         self.diagonal_step_cost = self.orthogonal_step_cost * 1.41421
 
     def map_callback(self, msg):
-        """ 
-        Receives the SLAM-generated map 
+        """
+        Receives the SLAM-generated map
 
         Args:
             msg(nav_msgs.msg.OccupancyGrid): Received map.
@@ -116,7 +123,9 @@ class GlobalPlannerNode(Node):
 
         # Convert odometry position from meters to grid coordinates
         x, y = msg.pose.pose.position.x, msg.pose.pose.position.y
-        self.current_x, self.current_y = self.meters_to_grid(msg.pose.pose.position.x, msg.pose.pose.position.y)
+        self.current_x, self.current_y = self.meters_to_grid(
+            msg.pose.pose.position.x, msg.pose.pose.position.y
+        )
         goal_x, goal_y = self.meters_to_grid(self.goal_x, self.goal_y)
         # Compute global path
         path = self.A_Algorithm(self.current_x, self.current_y, goal_x, goal_y)
@@ -187,21 +196,26 @@ class GlobalPlannerNode(Node):
         x, y = current
         LETHAL_COST = 50
         moves = [
-            (1, 0, self.orthogonal_step_cost),    # Right
-            (-1, 0, self.orthogonal_step_cost),   # Left
-            (0, -1, self.orthogonal_step_cost),   # Down
-            (0, 1, self.orthogonal_step_cost),    # Up
-            (-1, -1, self.diagonal_step_cost),    # Lower-left
-            (-1, 1, self.diagonal_step_cost),     # Upper-left
-            (1, -1, self.diagonal_step_cost),     # Lower-right
-            (1, 1, self.diagonal_step_cost)       # Upper-right
+            (1, 0, self.orthogonal_step_cost),  # Right
+            (-1, 0, self.orthogonal_step_cost),  # Left
+            (0, -1, self.orthogonal_step_cost),  # Down
+            (0, 1, self.orthogonal_step_cost),  # Up
+            (-1, -1, self.diagonal_step_cost),  # Lower-left
+            (-1, 1, self.diagonal_step_cost),  # Upper-left
+            (1, -1, self.diagonal_step_cost),  # Lower-right
+            (1, 1, self.diagonal_step_cost),  # Upper-right
         ]
 
         for dx, dy, step_cost in moves:
             nx, ny = x + dx, y + dy
             if 0 <= nx < self.map_width and 0 <= ny < self.map_height:
-                if self.map_data[ny, nx] is not None and self.map_data[ny, nx] < LETHAL_COST:  # Threshold for obstacles
-                    adjusted_cost = step_cost + self.map_data[ny, nx] / 255  # New step cost
+                if (
+                    self.map_data[ny, nx] is not None
+                    and self.map_data[ny, nx] < LETHAL_COST
+                ):  # Threshold for obstacles
+                    adjusted_cost = (
+                        step_cost + self.map_data[ny, nx] / 255
+                    )  # New step cost
                     neighbors.append(((nx, ny), adjusted_cost))
         return neighbors
 
@@ -216,7 +230,9 @@ class GlobalPlannerNode(Node):
         Returns:
             list: The computed path as a list of (x, y) coordinates.
         """
-        self.get_logger().info(f"Starting A* from {start_x, start_y} to {goal_x, goal_y}")
+        self.get_logger().info(
+            f"Starting A* from {start_x, start_y} to {goal_x, goal_y}"
+        )
 
         open_set = []
         heapq.heappush(open_set, (0, (start_x, start_y)))
@@ -236,7 +252,9 @@ class GlobalPlannerNode(Node):
                     came_from[neighbor] = current
                     g_score[neighbor] = temp_g_score
                     x_new, y_new = neighbor
-                    f_score[neighbor] = temp_g_score + self.h(x_new, y_new, goal_x, goal_y)
+                    f_score[neighbor] = temp_g_score + self.h(
+                        x_new, y_new, goal_x, goal_y
+                    )
                     heapq.heappush(open_set, (f_score[neighbor], neighbor))
 
         return []
@@ -259,44 +277,44 @@ class GlobalPlannerNode(Node):
         path.reverse()
 
         return path
-    
+
     def smooth_path_bezier(self, path, samples=40):
         """
         Smooth path using Bezier curves.
-        
+
         Args:
             path: List of (x,y) coordinates
             samples: Number of interpolated points between nodes
-            
+
         Returns:
             Smoothed path as list of (x,y) coordinates
         """
         if not path or len(path) < 3:
             return path  # Return original if not enough points
-            
+
         smoothed = []
         n = len(path)
-        
+
         # Add first point unchanged
         smoothed.append(path[0])
-        
+
         # Process middle points
-        for i in range(1, n-1):
-            p0 = path[i-1]  # Previous point
-            p1 = path[i]    # Current point (control point)
-            p2 = path[i+1]  # Next point
-            
+        for i in range(1, n - 1):
+            p0 = path[i - 1]  # Previous point
+            p1 = path[i]  # Current point (control point)
+            p2 = path[i + 1]  # Next point
+
             # Generate interpolated points
             for t in np.linspace(0, 1, samples):
-                x = (1-t)**2 * p0[0] + 2*(1-t)*t * p1[0] + t**2 * p2[0]
-                y = (1-t)**2 * p0[1] + 2*(1-t)*t * p1[1] + t**2 * p2[1]
+                x = (1 - t) ** 2 * p0[0] + 2 * (1 - t) * t * p1[0] + t**2 * p2[0]
+                y = (1 - t) ** 2 * p0[1] + 2 * (1 - t) * t * p1[1] + t**2 * p2[1]
                 smoothed.append((x, y))
-        
+
         # Add last point unchanged
         smoothed.append(path[-1])
-        
+
         return smoothed
-    
+
     def publish_path(self, path):
         """
         Publishes the computed path to the /global_planner topic.
@@ -310,10 +328,10 @@ class GlobalPlannerNode(Node):
 
         if not path:
             return
-            
+
         # Apply smoothing
         smoothed_path = self.smooth_path_bezier(path)  # or any other method
-        
+
         # Convert to meters
         path_meters = [self.grid_to_meter(x, y) for x, y in smoothed_path]
 
@@ -337,8 +355,8 @@ class GlobalPlannerNode(Node):
             pose.pose.position.y = float(path_meters[i][1])
 
             # Compute theta (yaw) from previous waypoint to current
-            dx = path_meters[i][0] - path_meters[i-1][0]
-            dy = path_meters[i][1] - path_meters[i-1][1]
+            dx = path_meters[i][0] - path_meters[i - 1][0]
+            dy = path_meters[i][1] - path_meters[i - 1][1]
             theta = np.arctan2(dy, dx)
 
             # Manually compute quaternion (no tf_transformations)
@@ -346,12 +364,13 @@ class GlobalPlannerNode(Node):
             sy = np.sin(theta * 0.5)
             pose.pose.orientation.x = 0.0  # No roll (x=0)
             pose.pose.orientation.y = 0.0  # No pitch (y=0)
-            pose.pose.orientation.z = sy   # Z = sin(theta/2)
-            pose.pose.orientation.w = cy   # W = cos(theta/2)
+            pose.pose.orientation.z = sy  # Z = sin(theta/2)
+            pose.pose.orientation.w = cy  # W = cos(theta/2)
 
             msg.poses.append(pose)
 
         self.path_publisher.publish(msg)
+
 
 def main(args=None):
     """
@@ -372,5 +391,5 @@ def main(args=None):
         rclpy.shutdown()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

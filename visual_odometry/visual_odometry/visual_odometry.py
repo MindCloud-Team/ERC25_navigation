@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from scipy.spatial.transform import Rotation as R
 from geometry_msgs.msg import Point, Quaternion
 from nav_msgs.msg import Odometry
@@ -8,8 +9,8 @@ import os
 import cv2
 import rclpy
 
-class VisualOdometry(Node):
 
+class VisualOdometry(Node):
     """
     ROS2 node for locating the rover using visual odometry
 
@@ -49,8 +50,12 @@ class VisualOdometry(Node):
         # self.depth_sub = self.create_subscription(Image, "stereo/depth", callback = self.depth_handle, qos_profile = 10)
         # Extracting images from the training folders
 
-        self.imgs_l = self.load_images("/home/ibrahim/ws/src/visual_odom/kitti_sequence_00/image_2")
-        self.imgs_r = self.load_images("/home/ibrahim/ws/src/visual_odom/kitti_sequence_00/image_3")
+        self.imgs_l = self.load_images(
+            "/home/ibrahim/ws/src/visual_odom/kitti_sequence_00/image_2"
+        )
+        self.imgs_r = self.load_images(
+            "/home/ibrahim/ws/src/visual_odom/kitti_sequence_00/image_3"
+        )
         # Initializing ORB and FLANN parameters
 
         self.orb = cv2.ORB.create(4000)
@@ -78,7 +83,9 @@ class VisualOdometry(Node):
         self.timestamps = []
         self.timestamps_truth = []
 
-        self.poses = self.load_poses("/home/ibrahim/ws/src/visual_odom/kitti_poses/00.txt")  # Loading the ground truth poses
+        self.poses = self.load_poses(
+            "/home/ibrahim/ws/src/visual_odom/kitti_poses/00.txt"
+        )  # Loading the ground truth poses
 
         self.process_sequence()  # running the pose odom publisher
 
@@ -89,7 +96,9 @@ class VisualOdometry(Node):
         Loads the images
         """
 
-        image_paths = [os.path.join(filepath, file) for file in sorted(os.listdir(filepath))]
+        image_paths = [
+            os.path.join(filepath, file) for file in sorted(os.listdir(filepath))
+        ]
         images = [cv2.imread(path, cv2.IMREAD_GRAYSCALE) for path in image_paths]
         return images
 
@@ -132,8 +141,7 @@ class VisualOdometry(Node):
         print(f"pts3d shape: {pts3d.shape}")
         print(f"pts2d shape: {pts2d.shape}")
         success, rvec, tvec, inliers = cv2.solvePnPRansac(
-            pts3d, pts2d, self.K_l, dist_coeffs,
-            flags=cv2.SOLVEPNP_ITERATIVE
+            pts3d, pts2d, self.K_l, dist_coeffs, flags=cv2.SOLVEPNP_ITERATIVE
         )
         if not success:
             print("PnP RANSAC failed!")
@@ -164,7 +172,9 @@ class VisualOdometry(Node):
             print(f"Number of points to triangulate: {pts1_norm.shape[1]}")
 
             # Remove NaN values
-            valid_mask = ~(np.isnan(pts1_norm).any(axis=0) | np.isnan(pts2_norm).any(axis=0))
+            valid_mask = ~(
+                np.isnan(pts1_norm).any(axis=0) | np.isnan(pts2_norm).any(axis=0)
+            )
             pts1_norm, pts2_norm = pts1_norm[:, valid_mask], pts2_norm[:, valid_mask]
 
             # Triangulate points
@@ -176,7 +186,9 @@ class VisualOdometry(Node):
 
             # Ensure W is not near zero before division
             valid_w = np.abs(points_4d[3]) > 1e-5
-            points_3d = (points_4d[:3, valid_w] / points_4d[3, valid_w]).T  # Shape: (N, 3)
+            points_3d = (
+                points_4d[:3, valid_w] / points_4d[3, valid_w]
+            ).T  # Shape: (N, 3)
 
             if points_3d.shape[0] == 0:
                 print("Error: No valid 3D points after filtering!")
@@ -188,7 +200,9 @@ class VisualOdometry(Node):
 
             # Validate disparity
             disparity = pts1[:, 0] - pts2[:, 0]
-            valid_disp_mask = (disparity > 0) & (disparity <= 100)  # ✅ FIX: Use `&` instead of `and`
+            valid_disp_mask = (disparity > 0) & (
+                disparity <= 100
+            )  # ✅ FIX: Use `&` instead of `and`
 
             if np.min(disparity) <= 0:
                 print("Warning: Invalid disparity detected! Removing invalid points.")
@@ -207,7 +221,10 @@ class VisualOdometry(Node):
 
             # Filter valid depth range
             valid_depth_mask = (points_3d[:, 2] > 0.5) & (points_3d[:, 2] < 100)
-            points_3d, pts1_filtered = points_3d[valid_depth_mask], pts1[valid_depth_mask]
+            points_3d, pts1_filtered = (
+                points_3d[valid_depth_mask],
+                pts1[valid_depth_mask],
+            )
 
             if points_3d.shape[0] == 0:
                 print("Error: No valid points after depth filtering!")
@@ -229,12 +246,14 @@ class VisualOdometry(Node):
         Extracts calibration data from the file provided
         """
 
-        with open(filepath, 'r') as f:
+        with open(filepath, "r") as f:
             lines = f.readlines()
-            lines = [line.strip().split(":")[1] for line in lines if ":" in line]  # Removing labels
+            lines = [
+                line.strip().split(":")[1] for line in lines if ":" in line
+            ]  # Removing labels
 
-        P_l = np.reshape(np.fromstring(lines[2], dtype=np.float64, sep=' '), (3, 4))
-        P_r = np.reshape(np.fromstring(lines[3], dtype=np.float64, sep=' '), (3, 4))
+        P_l = np.reshape(np.fromstring(lines[2], dtype=np.float64, sep=" "), (3, 4))
+        P_r = np.reshape(np.fromstring(lines[3], dtype=np.float64, sep=" "), (3, 4))
         K_l = P_l[:, :3]
         K_r = P_r[:, :3]
         return K_l, P_l, K_r, P_r
@@ -245,9 +264,9 @@ class VisualOdometry(Node):
         """
 
         poses = []
-        with open(filepath, 'r') as f:
+        with open(filepath, "r") as f:
             for line in f.readlines():
-                T = np.fromstring(line, dtype=np.float64, sep=' ')
+                T = np.fromstring(line, dtype=np.float64, sep=" ")
                 T = T.reshape(3, 4)
                 T = np.vstack((T, [0, 0, 0, 1]))
                 poses.append(T)
@@ -264,7 +283,8 @@ class VisualOdometry(Node):
         odom, rotation_matrix, translation, quaternion = self.odom_shorten(T)
 
         odom.pose.pose.position = Point(
-            x=translation[0], y=translation[1], z=translation[2] * -1)
+            x=translation[0], y=translation[1], z=translation[2] * -1
+        )
         odom.pose.pose.orientation = Quaternion(
             x=quaternion[0], y=quaternion[1], z=quaternion[2], w=quaternion[3]
         )
@@ -329,7 +349,8 @@ class VisualOdometry(Node):
         odom, rotation_matrix, translation, quaternion = self.odom_shorten(T)
 
         odom.pose.pose.position = Point(
-            x=translation[2], y=translation[1], z=translation[0])
+            x=translation[2], y=translation[1], z=translation[0]
+        )
         odom.pose.pose.orientation = Quaternion(
             x=quaternion[0], y=quaternion[1], z=quaternion[2], w=quaternion[3]
         )
@@ -338,7 +359,9 @@ class VisualOdometry(Node):
         self.timestamps_truth.append(current_time)
 
         if len(self.timestamps_truth) > 1:
-            dt = (self.timestamps_truth[-1] - self.timestamps_truth[-2]).nanoseconds * 1e-9
+            dt = (
+                self.timestamps_truth[-1] - self.timestamps_truth[-2]
+            ).nanoseconds * 1e-9
 
             if dt == 0:
                 dt = 1e-6
@@ -387,8 +410,8 @@ class VisualOdometry(Node):
         est_z = [pose[2, 3] for pose in self.estimates]
 
         plt.figure(figsize=(10, 5))
-        plt.plot(gt_x, gt_z, label="Ground Truth", color='g')
-        plt.plot(est_x, est_z, label="Estimated", color='r', linestyle='dashed')
+        plt.plot(gt_x, gt_z, label="Ground Truth", color="g")
+        plt.plot(est_x, est_z, label="Estimated", color="r", linestyle="dashed")
         plt.legend()
         plt.xlabel("X Position")
         plt.ylabel("Z Position")
@@ -426,8 +449,8 @@ class VisualOdometry(Node):
 
         odom = Odometry()
         odom.header.stamp = self.get_clock().now().to_msg()  # Get current time
-        odom.header.frame_id = 'odom'
-        odom.child_frame_id = 'base_link'
+        odom.header.frame_id = "odom"
+        odom.child_frame_id = "base_link"
 
         if rotation_matrix.shape != (3, 3):
             print(f"Unexpected shape: {rotation_matrix.shape}")
@@ -508,7 +531,9 @@ class VisualOdometry(Node):
                 self.C_k = self.C_k @ T_k
                 msg = self.odom_handle(self.C_k, i)
                 accurates = self.odom_truth(self.poses[i], i)
-                print(f"Z error : {accurates.pose.pose.position.z - msg.pose.pose.position.z}")
+                print(
+                    f"Z error : {accurates.pose.pose.position.z - msg.pose.pose.position.z}"
+                )
                 # Publishing the messages
 
                 self.pub.publish(msg)
@@ -517,6 +542,8 @@ class VisualOdometry(Node):
 
                 print(f"Pose at frame {i + 1}:\n{self.C_k}\n")
                 self.estimates.append(self.C_k)
+
+
 def main(args=None):
     """
     Main Entry point of the Visual Odometry node

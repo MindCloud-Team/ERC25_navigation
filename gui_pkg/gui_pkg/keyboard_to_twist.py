@@ -8,9 +8,10 @@ from std_msgs.msg import Header
 from pynput import keyboard
 import threading
 
+
 class KeyboardToMotionNode(Node):
     def __init__(self):
-        super().__init__('keyboard_to_motion_node')
+        super().__init__("keyboard_to_motion_node")
 
         self.pub_twist = self.create_publisher(TwistStamped, "cmd_vel", 10)
         self.linear = 0.0
@@ -26,13 +27,13 @@ class KeyboardToMotionNode(Node):
     def keyboard_listener(self):
         def on_press(key):
             try:
-                if key.char == 'w':
+                if key.char == "w":
                     self.linear = 1.0
-                elif key.char == 's':
+                elif key.char == "s":
                     self.linear = -1.0
-                elif key.char == 'a':
+                elif key.char == "a":
                     self.angular = 1.0
-                elif key.char == 'd':
+                elif key.char == "d":
                     self.angular = -1.0
             except AttributeError:
                 pass
@@ -49,12 +50,15 @@ class KeyboardToMotionNode(Node):
         twist_msg = TwistStamped()
         twist_msg.header = Header()
         twist_msg.header.stamp = self.get_clock().now().to_msg()
-        twist_msg.header.frame_id = 'base_link'
+        twist_msg.header.frame_id = "base_link"
         twist_msg.twist.linear.x = self.linear
         twist_msg.twist.angular.z = self.angular
 
         self.pub_twist.publish(twist_msg)
-        self.get_logger().info(f"Publishing: linear.x={self.linear}, angular.z={self.angular}")
+        self.get_logger().info(
+            f"Publishing: linear.x={self.linear}, angular.z={self.angular}"
+        )
+
 
 def main(args=None):
     rclpy.init(args=args)
@@ -66,6 +70,6 @@ def main(args=None):
     node.destroy_node()
     rclpy.shutdown()
 
-if __name__ == '__main__':
-    main()
 
+if __name__ == "__main__":
+    main()

@@ -78,15 +78,17 @@ class ResizablePixmapLabel(QLabel):
                 )
             )
 
+
 # --- MODIFICATION: Consolidated ImageProcessor threads into one ---
 class CombinedImageProcessor(QThread):
     """A single thread to process images from all cameras."""
+
     pixmap_ready = pyqtSignal(str, QPixmap)
 
     def __init__(self):
         super().__init__()
         # The queue will now store tuples of (camera_key, message)
-        self.image_queue = Queue(maxsize=10) # Increased size slightly
+        self.image_queue = Queue(maxsize=10)  # Increased size slightly
         self.is_running = True
 
     def add_image(self, camera_key, msg):
@@ -100,17 +102,17 @@ class CombinedImageProcessor(QThread):
             try:
                 # Dequeue the camera key and the message
                 camera_key, msg = self.image_queue.get(timeout=1)
-                
+
                 cv_image = bridge.imgmsg_to_cv2(msg, desired_encoding="rgb8")
                 if cv_image.shape[1] > PRESCALE_WIDTH:
                     scale = PRESCALE_WIDTH / cv_image.shape[1]
                     dims = (PRESCALE_WIDTH, int(cv_image.shape[0] * scale))
                     cv_image = cv2.resize(cv_image, dims, interpolation=cv2.INTER_AREA)
-                
+
                 h, w, ch = cv_image.shape
                 bpl = ch * w
                 qt_image = QImage(cv_image.data, w, h, bpl, QImage.Format_RGB888)
-                
+
                 # Emit the key along with the pixmap
                 self.pixmap_ready.emit(camera_key, QPixmap.fromImage(qt_image))
             except Empty:
@@ -192,13 +194,13 @@ class PantherSensorNode(Node):
         )
         self.create_subscription(Imu, "/imu/data", self.imu_cb, 10)
         self.create_subscription(Odometry, "/odometry/wheels", self.odom_cb, 10)
-        
+
         # --- MODIFICATION: Using a more robust QoS for the E-Stop status ---
         # This profile ensures we get the last published state upon connecting.
         estop_qos_profile = QoSProfile(
             depth=1,
             reliability=ReliabilityPolicy.RELIABLE,
-            durability=DurabilityPolicy.TRANSIENT_LOCAL
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
         )
         self.create_subscription(
             Bool, "/hardware/e_stop", self.estop_cb, estop_qos_profile
@@ -259,7 +261,7 @@ class PantherDashboard(QMainWindow):
         self._lidar_camera_initialized = False
         self.setFocusPolicy(Qt.StrongFocus)
         self.pressed_keys = set()
-        
+
         # --- MODIFICATION: Create a single image processor ---
         self.image_processor = CombinedImageProcessor()
         self.image_processor.pixmap_ready.connect(self.update_camera_feed)

@@ -48,6 +48,7 @@ class FrontierSearch(Node):
         /search_goal (nav2_msgs/NavigateToPose)
 
     """
+
     def __init__(self):
         """
         Initialize the FrontierSearch Node.
@@ -57,9 +58,9 @@ class FrontierSearch(Node):
         super().__init__("frontier_search_node")
 
         # Declare Parameters
-        self.declare_parameter("a", 1.0) # Alpha for Distance
-        self.declare_parameter("b", 10.0) # Beta for Size
-        self.declare_parameter("g", 0.5) # Gamma for Orientation
+        self.declare_parameter("a", 1.0)  # Alpha for Distance
+        self.declare_parameter("b", 10.0)  # Beta for Size
+        self.declare_parameter("g", 0.5)  # Gamma for Orientation
 
         # Get Parameters
         self.a = self.get_parameter("a").value
@@ -73,27 +74,17 @@ class FrontierSearch(Node):
 
         # Create Subscribers
         self.map_sub = self.create_subscription(
-            OccupancyGrid,
-            "/my_global_costmap",
-            self.mapCallback,
-            10
+            OccupancyGrid, "/my_global_costmap", self.mapCallback, 10
         )
 
         self.odom_sub = self.create_subscription(
-            Odometry,
-            "/odom",
-            self.get_current_position,
-            10
+            Odometry, "/odom", self.get_current_position, 10
         )
 
         # Create action client
-        self.goal_client = ActionClient(
-            self,
-            NavigateToPose,
-            "/search_goal"
-        )
+        self.goal_client = ActionClient(self, NavigateToPose, "/search_goal")
 
-    def mapCallback(self, map:OccupancyGrid):
+    def mapCallback(self, map: OccupancyGrid):
         """
         Main Function which receives the occupancy grid and control the flow
         of the code
@@ -108,21 +99,21 @@ class FrontierSearch(Node):
         # List of all frontier cells to explore
         self.frontier_cells = []
 
-        for y in range(1, height-1):
+        for y in range(1, height - 1):
             for x in range(1, width - 1):
-                if data[y,x] == 0:
-                    neighbours = data[y-1:y+2, x-1:x+2].flatten()
+                if data[y, x] == 0:
+                    neighbours = data[y - 1 : y + 2, x - 1 : x + 2].flatten()
                     if -1 in neighbours:
-                        self.frontier_cells.append((x,y))
-        
+                        self.frontier_cells.append((x, y))
+
         self.get_logger().info(f"Found {len(self.frontier_cells)} frontier cells")
 
         # Group cells into Clusters
         clusters = self.cluster_cells()
         self.get_logger().info(f"Found {len(clusters)} frontier clusters")
-        
+
         # Loop through all created clusters and find the best one to visit
-        best_cost = float('inf')
+        best_cost = float("inf")
         best_centroid = None
 
         for cluster in clusters:
@@ -134,7 +125,7 @@ class FrontierSearch(Node):
             if cost < best_cost:
                 best_cost = cost
                 best_centroid = centroid
-        
+
         # Publish to goal if best_centroid is found
         if best_centroid:
             cx, cy = best_centroid
@@ -151,16 +142,16 @@ class FrontierSearch(Node):
         """
         Creates clusters of cells
         """
-        clusters = [] # List of all clusters to be returned
-        visited = set() # A set of already visited cells
+        clusters = []  # List of all clusters to be returned
+        visited = set()  # A set of already visited cells
         frontier_set = set(self.frontier_cells)
 
         for cell in self.frontier_cells:
             if cell in visited:
                 continue
 
-            queue = [cell] # Cells to explore
-            cluster = [] # Current Cluster
+            queue = [cell]  # Cells to explore
+            cluster = []  # Current Cluster
 
             # Loop through the queue until finished to form a cluster
             while queue:
@@ -171,11 +162,13 @@ class FrontierSearch(Node):
                 cluster.append(current)
 
                 x, y = current
-                neighbours = [(x+dx, y+dy)
-                              for dx in [-1, 0, 1]
-                              for dy in [-1, 0, 1]
-                              if not (dx == 0 and dy == 0)] # 8 Adjacent cells (BFS Expansion)
-                
+                neighbours = [
+                    (x + dx, y + dy)
+                    for dx in [-1, 0, 1]
+                    for dy in [-1, 0, 1]
+                    if not (dx == 0 and dy == 0)
+                ]  # 8 Adjacent cells (BFS Expansion)
+
                 for nx, ny in neighbours:
                     neighbour = (nx, ny)
                     if neighbour in frontier_set and neighbour not in visited:
@@ -184,8 +177,10 @@ class FrontierSearch(Node):
             clusters.append(cluster)
 
         return clusters
-    
-    def is_cluster_trapped(self, cluster, data, width, height, steps=5, obstacle_thresh=0.7):
+
+    def is_cluster_trapped(
+        self, cluster, data, width, height, steps=5, obstacle_thresh=0.7
+    ):
         """
         Checks if a frontier cluster is likely enclosed by obstacles.
 
@@ -203,7 +198,7 @@ class FrontierSearch(Node):
         # Not revised yet
         # Convert to set for fast lookup
         cluster_set = set(cluster)
-        
+
         for step in range(1, steps + 1):
             ring_cells = set()
 
@@ -235,7 +230,7 @@ class FrontierSearch(Node):
                 return True  # Trapped
 
         return False  # Reachable
-    
+
     def compute_centroid(self, cluster):
         """
         Computes centroids of clusters to later find the distance between
@@ -247,7 +242,7 @@ class FrontierSearch(Node):
         x_vals = [pt[0] for pt in cluster]
         y_vals = [pt[1] for pt in cluster]
         return (sum(x_vals) / len(x_vals), sum(y_vals) / len(y_vals))
-    
+
     def compute_cost(self, centroid, cluster_size):
         """
         Computes cost for each cluster to find the best cost and decides to
@@ -275,12 +270,12 @@ class FrontierSearch(Node):
         orientation_penalty = heading_diff / pi  # Normalize to [0, 1]
 
         # Cost Function
-        return self.a*distance + self.b/cluster_size + self.g*orientation_penalty
+        return self.a * distance + self.b / cluster_size + self.g * orientation_penalty
 
     def request_goal(self, world_x, world_y):
         """
         Sends the goal to the action server
-        
+
         Args:
             world_x (float)
             world_y (float)
@@ -293,9 +288,8 @@ class FrontierSearch(Node):
         goal.pose.pose.orientation.w = 1.0
         self.goal_client.wait_for_server()
         goal_future = self.goal_client.send_goal_async(
-            goal=goal,
-            feedback_callback=self.goal_client_feedback
-            )
+            goal=goal, feedback_callback=self.goal_client_feedback
+        )
         goal_future.add_done_callback(self.goal_response_callback)
 
     def goal_response_callback(self, future):
@@ -324,10 +318,12 @@ class FrontierSearch(Node):
         """
         Receives feedback from action server and logs them
         """
-        self.get_logger().info(f"Feedback:: Current X: \
+        self.get_logger().info(
+            f"Feedback:: Current X: \
                                {feedback_msg.feedback.current_pose.pose.x},\
-                                Current Y: {feedback_msg.feedback.current_pose.y}")
-    
+                                Current Y: {feedback_msg.feedback.current_pose.y}"
+        )
+
     def get_current_position(self, msg: Odometry):
         """
         Stores rover's current position and orientation
@@ -338,7 +334,8 @@ class FrontierSearch(Node):
         self.rover_position = (msg.pose.pose.position.x, msg.pose.pose.position.y)
         orientation = msg.pose.pose.orientation
         q = [orientation.x, orientation.y, orientation.z, orientation.w]
-        _, _, self.yaw = R.from_quat(q).as_euler('xyz', degrees=False)
+        _, _, self.yaw = R.from_quat(q).as_euler("xyz", degrees=False)
+
 
 def main(args=None):
     """
@@ -355,5 +352,5 @@ def main(args=None):
         rclpy.shutdown()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

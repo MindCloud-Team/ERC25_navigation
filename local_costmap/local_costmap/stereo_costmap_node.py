@@ -9,7 +9,6 @@ from nav_msgs.msg import OccupancyGrid
 from geometry_msgs.msg import Pose
 from cv_bridge import CvBridge
 import math
-from scipy.spatial.distance import cdist
 import struct
 
 
