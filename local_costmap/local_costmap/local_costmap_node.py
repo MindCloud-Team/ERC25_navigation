@@ -14,8 +14,8 @@ from nav_msgs.msg import OccupancyGrid
 from geometry_msgs.msg import Pose
 import math
 
-class LocalCostmapNode(Node):
 
+class LocalCostmapNode(Node):
     """
     ROS2 node for generating a local costmap using LIDAR data.
 
@@ -46,12 +46,11 @@ class LocalCostmapNode(Node):
     """
 
     def __init__(self):
-        
         """
         Initialize the LocalCostmapNode and set up ROS publishers, subscribers, and parameters.
         """
-        
-        super().__init__('local_costmap')
+
+        super().__init__("local_costmap")
 
         self.grid_size = 4.0  # 4x4 meters grid (centered on robot)
         self.resolution = 0.05  # Each cell is 5 cm
@@ -60,28 +59,26 @@ class LocalCostmapNode(Node):
         self.grid_width = int(self.grid_size / self.resolution)
         self.grid_height = int(self.grid_size / self.resolution)
 
-        self.scan_sub = self.create_subscription(LaserScan, '/scan', self.scan_callback, 10)
-        self.costmap_pub = self.create_publisher(OccupancyGrid, '/local_costmap', 10)
+        self.scan_sub = self.create_subscription(
+            LaserScan, "/scan", self.scan_callback, 10
+        )
+        self.costmap_pub = self.create_publisher(OccupancyGrid, "/local_costmap", 10)
 
         self.timer = self.create_timer(0.1, self.publish_costmap)
 
         self.lidar_data = None
 
-    
     def scan_callback(self, msg):
-        
         """
         Process incoming LIDAR scan messages and store the data.
 
         Args:
             msg (sensor_msgs.msg.LaserScan): The LIDAR scan message.
         """
-        
+
         self.lidar_data = msg
 
-
     def create_costmap(self):
-        
         """
         Convert LIDAR scan data to an occupancy grid.
 
@@ -97,7 +94,7 @@ class LocalCostmapNode(Node):
         grid = np.full((self.grid_height, self.grid_width), -1, dtype=np.int8)
 
         angle = self.lidar_data.angle_min
-        
+
         for r in self.lidar_data.ranges:
             if r < self.range_limit and r > self.lidar_data.range_min:
                 x = r * np.cos(angle)
@@ -121,7 +118,9 @@ class LocalCostmapNode(Node):
         Args:
             grid (numpy.ndarray): The occupancy grid where obstacles are inflated.
         """
-        inflation_radius = int(0.3 / self.resolution)  # 30 cm buffer converted to grid cells
+        inflation_radius = int(
+            0.3 / self.resolution
+        )  # 30 cm buffer converted to grid cells
         max_cost = 100
         decay_rate = 100 / inflation_radius  # Linear decay
 
@@ -138,16 +137,17 @@ class LocalCostmapNode(Node):
                                 dist = math.sqrt(dx**2 + dy**2)
                                 if dist <= inflation_radius:
                                     new_cost = max_cost - int(decay_rate * dist)
-                                    inflated_grid[ny, nx] = max(inflated_grid[ny, nx], new_cost)
-        
+                                    inflated_grid[ny, nx] = max(
+                                        inflated_grid[ny, nx], new_cost
+                                    )
+
         np.copyto(grid, inflated_grid)
 
     def publish_costmap(self):
-        
         """
-         Publish the local costmap as an OccupancyGrid. 
+        Publish the local costmap as an OccupancyGrid.
         """
-        
+
         grid = self.create_costmap()
         if grid is None:
             return
@@ -172,19 +172,19 @@ class LocalCostmapNode(Node):
 
 
 def main(args=None):
-    
     """
     Main entry point for the local costmap node.
 
     Args:
         args: Command-line arguments.
     """
-    
+
     rclpy.init(args=args)
     node = LocalCostmapNode()
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

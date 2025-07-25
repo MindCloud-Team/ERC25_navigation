@@ -14,7 +14,7 @@ from rclpy.node import Node
 from rclpy.action import ActionClient
 from nav_msgs.msg import OccupancyGrid, Odometry
 from nav2_msgs.action import NavigateToPose
-from geometry_msgs.msg import PoseStamped # Used in feedback
+from geometry_msgs.msg import PoseStamped  # Used in feedback
 from scipy.spatial.transform import Rotation as R
 import numpy as np
 from math import sqrt, atan2, pi
@@ -52,7 +52,7 @@ class FrontierSearch(Node):
 
         # Declare and get parameters
         self.declare_parameter("a", 1.0)  # Alpha for Distance
-        self.declare_parameter("b", 10.0) # Beta for Size
+        self.declare_parameter("b", 10.0)  # Beta for Size
         self.declare_parameter("g", 0.5)  # Gamma for Orientation
         self.a = self.get_parameter("a").value
         self.b = self.get_parameter("b").value
@@ -70,21 +70,15 @@ class FrontierSearch(Node):
 
         # Create Subscribers
         self.map_sub = self.create_subscription(
-            OccupancyGrid,
-            "/map",
-            self.mapCallback,
-            10
+            OccupancyGrid, "/map", self.mapCallback, 10
         )
         self.odom_sub = self.create_subscription(
-            Odometry,
-            "/odom",
-            self.get_current_position,
-            10
+            Odometry, "/odom", self.get_current_position, 10
         )
 
         # Create action client
         self.goal_client = ActionClient(self, NavigateToPose, "/navigate_to_pose")
-        
+
         # --- MODIFIED: Wait for action server in __init__ to avoid blocking callbacks ---
         self.get_logger().info("Waiting for navigate_to_pose action server...")
         self.goal_client.wait_for_server()
@@ -98,7 +92,7 @@ class FrontierSearch(Node):
         if self.is_navigating:
             self.get_logger().info(
                 "Robot is navigating, skipping new frontier search.",
-                throttle_duration_sec=10
+                throttle_duration_sec=10,
             )
             return
 
@@ -118,15 +112,17 @@ class FrontierSearch(Node):
                 # A frontier cell must be a known free cell (value 0)
                 if data[y, x] == 0:
                     # Check its 8 neighbors
-                    neighbours = data[y-1:y+2, x-1:x+2].flatten()
+                    neighbours = data[y - 1 : y + 2, x - 1 : x + 2].flatten()
                     # If any neighbor is an unknown cell (value -1), it's a frontier
                     if -1 in neighbours:
                         self.frontier_cells.append((x, y))
 
         if not self.frontier_cells:
-            self.get_logger().warn("No frontier cells found. Exploration may be complete.")
+            self.get_logger().warn(
+                "No frontier cells found. Exploration may be complete."
+            )
             return
-        
+
         self.get_logger().info(f"Found {len(self.frontier_cells)} frontier cells.")
 
         # Group frontier cells into clusters
@@ -134,11 +130,11 @@ class FrontierSearch(Node):
         if not clusters:
             self.get_logger().warn("Could not form any frontier clusters.")
             return
-            
+
         self.get_logger().info(f"Grouped into {len(clusters)} frontier clusters.")
 
         # Find the best cluster to visit based on a cost function
-        best_cost = float('inf')
+        best_cost = float("inf")
         best_centroid = None
         for cluster in clusters:
             # Filter out very small clusters that might just be noise
@@ -161,7 +157,9 @@ class FrontierSearch(Node):
                 self.last_goal = current_goal
                 self.request_goal(world_x, world_y)
             else:
-                self.get_logger().info("Best frontier is the same as the last goal. Waiting for map to change.")
+                self.get_logger().info(
+                    "Best frontier is the same as the last goal. Waiting for map to change."
+                )
         else:
             self.get_logger().info("No suitable frontier found in this iteration.")
 
@@ -195,7 +193,7 @@ class FrontierSearch(Node):
                         if neighbor in frontier_set and neighbor not in visited:
                             visited.add(neighbor)
                             queue.append(neighbor)
-            
+
             clusters.append(cluster)
         return clusters
 
@@ -238,7 +236,11 @@ class FrontierSearch(Node):
 
         # Final Cost Function: Lower is better
         # We want to minimize distance and orientation change, and maximize size.
-        cost = (self.a * distance) - (self.b * cluster_size) + (self.g * orientation_penalty)
+        cost = (
+            (self.a * distance)
+            - (self.b * cluster_size)
+            + (self.g * orientation_penalty)
+        )
         return cost
 
     def request_goal(self, world_x, world_y):
@@ -254,13 +256,14 @@ class FrontierSearch(Node):
         goal.pose.header.stamp = self.get_clock().now().to_msg()
         goal.pose.pose.position.x = world_x
         goal.pose.pose.position.y = world_y
-        goal.pose.pose.orientation.w = 1.0 # No specific orientation, Nav2 will handle it
-        
+        goal.pose.pose.orientation.w = (
+            1.0  # No specific orientation, Nav2 will handle it
+        )
+
         self.get_logger().info(f"Sending goal: ({world_x:.2f}, {world_y:.2f})")
-        
+
         goal_future = self.goal_client.send_goal_async(
-            goal=goal,
-            feedback_callback=self.goal_feedback_callback
+            goal=goal, feedback_callback=self.goal_feedback_callback
         )
         goal_future.add_done_callback(self.goal_response_callback)
 
@@ -276,10 +279,9 @@ class FrontierSearch(Node):
         # --- MODIFIED: Set navigating state to True ---
         self.is_navigating = True
         self.get_logger().info("Goal accepted. Robot is navigating...")
-        
+
         result_future = goal_handle.get_result_async()
         result_future.add_done_callback(self.goal_result_callback)
-
 
     def goal_result_callback(self, future):
         """
@@ -288,12 +290,14 @@ class FrontierSearch(Node):
         # The result object contains the final status and the result message
         action_result = future.result()
         status = action_result.status
-        result_message = action_result.result # This is the nav2_msgs/NavigateToPose.Result
+        result_message = (
+            action_result.result
+        )  # This is the nav2_msgs/NavigateToPose.Result
 
         # Check the overall action status
         if status == GoalStatus.STATUS_SUCCEEDED:
             # Now, check the specific error_code from the Nav2 result
-            if result_message.error_code == 0: # 0 means NONE/SUCCESS
+            if result_message.error_code == 0:  # 0 means NONE/SUCCESS
                 self.get_logger().info("Goal succeeded!")
             else:
                 self.get_logger().warn(
@@ -306,7 +310,7 @@ class FrontierSearch(Node):
 
         # Reset state so the node can search for a new goal
         self.is_navigating = False
-        self.last_goal = None # Clear last goal to allow retrying if it failed
+        self.last_goal = None  # Clear last goal to allow retrying if it failed
 
     def goal_feedback_callback(self, feedback_msg):
         """
@@ -316,7 +320,7 @@ class FrontierSearch(Node):
         # Log feedback occasionally to avoid spamming the console
         self.get_logger().info(
             f"Distance remaining: {feedback.distance_remaining:.2f} m",
-            throttle_duration_sec=5
+            throttle_duration_sec=5,
         )
 
     def get_current_position(self, msg: Odometry):
@@ -329,7 +333,7 @@ class FrontierSearch(Node):
             orientation = msg.pose.pose.orientation
             q = [orientation.x, orientation.y, orientation.z, orientation.w]
             # Use as_euler to get yaw, which is rotation around z-axis
-            _, _, self.yaw = R.from_quat(q).as_euler('xyz', degrees=False)
+            _, _, self.yaw = R.from_quat(q).as_euler("xyz", degrees=False)
 
 
 def main(args=None):
@@ -347,5 +351,5 @@ def main(args=None):
         rclpy.shutdown()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
