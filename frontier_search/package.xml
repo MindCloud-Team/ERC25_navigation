@@ -1,17 +1,16 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>microcontroller</name>
+  <name>frontier_search</name>
   <version>0.0.0</version>
   <description>TODO: Package description</description>
-  <maintainer email="rosuser@todo.todo">rosuser</maintainer>
+  <maintainer email="mohamedwael200320@gmail.com">mwa</maintainer>
   <license>TODO: License declaration</license>
 
+  <depend>std_msgs</depend>
   <depend>rclpy</depend>
-  <depend>sensor_msgs</depend>
-  <depend>nav_msgs</depend>
   <depend>geometry_msgs</depend>
-  <exec_depend>ros2launch</exec_depend>
+  <depend>nav_msgs</depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
