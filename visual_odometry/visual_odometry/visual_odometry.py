@@ -1,4 +1,4 @@
-#! /usr/bin/env python3
+#!/usr/bin/env python3
 """
 A Sample for Localization of the rover using the Zed camera
 
