@@ -20,28 +20,42 @@ import numpy as np
 from math import sqrt, atan2, pi
 import threading
 from action_msgs.msg import GoalStatus
+from time import time
+from visualization_msgs.msg import Marker, MarkerArray
+from std_msgs.msg import ColorRGBA
+
 
 
 class FrontierSearch(Node):
     """
-    ROS2 Node for choosing next area to explore using frontier search algorithm
+    ROS2 Node for choosing next area to explore using a frontier search algorithm.
 
-    This node subscribes to /map and /odom and sends goals to the
-    /navigate_to_pose action server.
+    This node subscribes to the map and odometry topics, computes unexplored frontier
+    regions, and sends goals to the /navigate_to_pose action server using Nav2.
+
+    Key features:
+    - Clusters frontier cells using BFS.
+    - Chooses optimal frontier based on cost (distance, orientation, size).
+    - Avoids trapped/unreachable frontiers by blacklisting.
+    - Visualizes frontiers and goals in RViz using markers.
 
     Attributes:
-        map_sub (Subscriber): Subscriber to 'Occupancy grid'
-        odom_sub (Subscriber): Subscriber to odom
-        goal_client (ActionClient): Client for the NavigateToPose action server
-        rover_position (tuple): Rover's current position (x, y)
-        yaw (float, radians): Rover's current yaw
-        last_goal (tuple): Last computed goal (world coordinates)
-        origin (Pose): Occupancy grid's origin
-        resolution (float): Occupancy grid's resolution
-        frontier_cells (list): List of all frontier cells to explore
-        is_navigating (bool): State flag, True if the robot is currently executing a goal
-        lock (threading.Lock): Lock to ensure thread-safe access to shared variables
+        map_sub (Subscription): Subscribes to OccupancyGrid maps.
+        odom_sub (Subscription): Subscribes to Odometry to track robot pose.
+        goal_client (ActionClient): Sends goals to NavigateToPose server.
+        marker_pub (Publisher): Publishes frontier and goal markers for RViz.
+        is_navigating (bool): True when robot is executing a goal.
+        lock (threading.Lock): Ensures thread-safe access to shared variables.
+        rover_position (tuple): Robot's current (x, y) position.
+        yaw (float): Robot's current orientation (yaw in radians).
+        last_goal (tuple): Last goal sent, to prevent redundant commands.
+        origin (Pose): Origin of the occupancy grid map.
+        resolution (float): Resolution of the map (meters per cell).
+        frontier_cells (list): Detected frontier cells (free next to unknown).
+        trapped_clusters (dict): Recently failed centroids with timestamps.
+        blacklist_duration (float): Time (s) to ignore failed frontiers.
     """
+
 
     def __init__(self):
         """
@@ -67,6 +81,9 @@ class FrontierSearch(Node):
         self.origin = None
         self.resolution = 0.0
         self.frontier_cells = []
+        self.trapped_clusters = {}  # centroid (grid coords) -> timestamp
+        self.blacklist_duration = 15.0  # seconds to ignore them
+        self.marker_pub = self.create_publisher(MarkerArray, "frontier_markers", 10)
 
         # Create Subscribers
         self.map_sub = self.create_subscription(
@@ -133,18 +150,44 @@ class FrontierSearch(Node):
 
         self.get_logger().info(f"Grouped into {len(clusters)} frontier clusters.")
 
+                # Clean old blacklist entries
+        now = time()
+        self.trapped_clusters = {
+            key: ts for key, ts in self.trapped_clusters.items()
+            if now - ts < self.blacklist_duration
+        }
+
         # Find the best cluster to visit based on a cost function
         best_cost = float("inf")
         best_centroid = None
+
         for cluster in clusters:
-            # Filter out very small clusters that might just be noise
             if len(cluster) < 5:
-                continue
+                continue  # Skip too-small clusters
+
             centroid = self.compute_centroid(cluster)
+            centroid_key = (round(centroid[0], 1), round(centroid[1], 1))
+
+            # Skip if recently blacklisted
+            if centroid_key in self.trapped_clusters:
+                self.get_logger().info(
+                    f"Skipping blacklisted cluster at {centroid_key}"
+                )
+                continue
+
+            # Check if trapped
+            if self.is_cluster_trapped(cluster, data, width, height):
+                self.trapped_clusters[centroid_key] = now
+                continue
+
+            # Evaluate cost
             cost = self.compute_cost(centroid, len(cluster))
             if cost < best_cost:
                 best_cost = cost
                 best_centroid = centroid
+        
+        # Visualize all centroids and selected goal in RViz
+        self.publish_frontier_markers(clusters, best_centroid)
 
         # If a valid best frontier is found, send it as the next goal
         if best_centroid:
@@ -163,6 +206,59 @@ class FrontierSearch(Node):
         else:
             self.get_logger().info("No suitable frontier found in this iteration.")
 
+    def is_cluster_trapped(
+        self, cluster, data, width, height, steps=5, obstacle_thresh=0.7
+    ):
+        """
+        Checks if a frontier cluster is likely enclosed by obstacles.
+
+        Args:
+            cluster (list): List of (x, y) grid cells in the cluster.
+            data (np.ndarray): 2D occupancy grid.
+            width (int): Map width.
+            height (int): Map height.
+            steps (int): Max layers to expand.
+            obstacle_thresh (float): Threshold ratio to consider trapped.
+
+        Returns:
+            bool: True if trapped, False if reachable.
+        """
+        # Not revised yet
+        # Convert to set for fast lookup
+        cluster_set = set(cluster)
+
+        for step in range(1, steps + 1):
+            ring_cells = set()
+
+            for x, y in cluster:
+                for dx in range(-step, step + 1):
+                    for dy in [-step, step]:
+                        nx, ny = x + dx, y + dy
+                        if 0 <= nx < width and 0 <= ny < height:
+                            ring_cells.add((nx, ny))
+                    for dy in range(-step + 1, step):
+                        for dx in [-step, step]:
+                            nx, ny = x + dx, y + dy
+                            if 0 <= nx < width and 0 <= ny < height:
+                                ring_cells.add((nx, ny))
+
+            # Filter out cells already in cluster
+            ring_cells -= cluster_set
+
+            if not ring_cells:
+                continue
+
+            obstacle_count = sum(1 for (x, y) in ring_cells if data[y, x] == 100)
+            ratio = obstacle_count / len(ring_cells)
+
+            if ratio > obstacle_thresh:
+                self.get_logger().info(
+                    f"Cluster discarded at step {step} with {ratio*100:.1f}% obstacles"
+                )
+                return True  # Trapped
+
+        return False  # Reachable
+    
     def cluster_cells(self):
         """
         Groups adjacent frontier cells into clusters using a Breadth-First Search approach.
@@ -334,6 +430,74 @@ class FrontierSearch(Node):
             q = [orientation.x, orientation.y, orientation.z, orientation.w]
             # Use as_euler to get yaw, which is rotation around z-axis
             _, _, self.yaw = R.from_quat(q).as_euler("xyz", degrees=False)
+
+    def publish_frontier_markers(self, clusters, best_centroid):
+        """
+        Publishes RViz markers for all frontier centroids and the chosen goal.
+
+        Frontier centroids are shown in blue. The selected best frontier (goal)
+        is shown in green. Markers are of type SPHERE.
+
+        Args:
+            clusters (list): List of frontier clusters (list of grid cell tuples).
+            best_centroid (tuple): Grid coordinates of the chosen goal centroid.
+        """
+        marker_array = MarkerArray()
+        now = self.get_clock().now().to_msg()
+
+        # ID counter
+        marker_id = 0
+
+        # Frontier cluster centroids (blue)
+        for cluster in clusters:
+            if len(cluster) < 5:
+                continue
+            centroid = self.compute_centroid(cluster)
+            centroid_key = (round(centroid[0], 1), round(centroid[1], 1))
+
+            # Skip blacklisted
+            if centroid_key in self.trapped_clusters:
+                continue
+
+            marker = Marker()
+            marker.header.frame_id = "map"
+            marker.header.stamp = now
+            marker.ns = "frontier_centroids"
+            marker.id = marker_id
+            marker.type = Marker.SPHERE
+            marker.action = Marker.ADD
+            marker.scale.x = 0.2
+            marker.scale.y = 0.2
+            marker.scale.z = 0.2
+            marker.color = ColorRGBA(r=0.0, g=0.4, b=1.0, a=1.0)  # Blue
+            marker.pose.position.x = centroid[0] * self.resolution + self.origin.position.x
+            marker.pose.position.y = centroid[1] * self.resolution + self.origin.position.y
+            marker.pose.position.z = 0.1
+            marker.pose.orientation.w = 1.0
+            marker_array.markers.append(marker)
+            marker_id += 1
+
+        # Best centroid (green)
+        if best_centroid:
+            marker = Marker()
+            marker.header.frame_id = "map"
+            marker.header.stamp = now
+            marker.ns = "best_frontier"
+            marker.id = marker_id
+            marker.type = Marker.SPHERE
+            marker.action = Marker.ADD
+            marker.scale.x = 0.3
+            marker.scale.y = 0.3
+            marker.scale.z = 0.3
+            marker.color = ColorRGBA(r=0.0, g=1.0, b=0.0, a=1.0)  # Green
+            marker.pose.position.x = best_centroid[0] * self.resolution + self.origin.position.x
+            marker.pose.position.y = best_centroid[1] * self.resolution + self.origin.position.y
+            marker.pose.position.z = 0.1
+            marker.pose.orientation.w = 1.0
+            marker_array.markers.append(marker)
+
+        self.marker_pub.publish(marker_array)
+
 
 
 def main(args=None):
