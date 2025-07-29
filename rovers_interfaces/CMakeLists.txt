@@ -15,6 +15,8 @@ find_package(builtin_interfaces REQUIRED)
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/Ticks.msg"
   "msg/ArucoMarkers.msg"
+  "msg/Detection.msg"
+  "msg/DetectionList.msg"
   # Add other .msg files here if you have more
   # "srv/MyService.srv"
   # "action/MyAction.action"
