@@ -69,13 +69,14 @@ def quaternion_from_matrix(matrix: np.ndarray) -> list:
 class MonoArucoNode(rclpy.node.Node):
     def __init__(self):
         super().__init__("mono_aruco_node")
+        
 
         # --- Parameter Declaration ---
         self.declare_parameter("marker_size", 0.05, ParameterDescriptor(type=ParameterType.PARAMETER_DOUBLE))
         self.declare_parameter("aruco_dictionary_id", "DICT_ARUCO_ORIGINAL", ParameterDescriptor(type=ParameterType.PARAMETER_STRING))
         self.declare_parameter("rover_frame", "base_link", ParameterDescriptor(type=ParameterType.PARAMETER_STRING))
-        self.declare_parameter("image_topic", "/oak/rgb/image_raw", ParameterDescriptor(type=ParameterType.PARAMETER_STRING))
-        self.declare_parameter("camera_info_topic", "/oak/rgb/camera_info", ParameterDescriptor(type=ParameterType.PARAMETER_STRING))
+        self.declare_parameter("image_topic", "/front_cam/zed_node/rgb/image_rect_color", ParameterDescriptor(type=ParameterType.PARAMETER_STRING))
+        self.declare_parameter("camera_info_topic", "/front_cam/zed_node/rgb/camera_info", ParameterDescriptor(type=ParameterType.PARAMETER_STRING))
 
         # --- Parameter Retrieval ---
         self.marker_size = self.get_parameter("marker_size").value

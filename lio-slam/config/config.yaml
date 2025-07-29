@@ -1,0 +1,61 @@
+# Correctly formatted ROS 2 parameter file for lio_sam_custom
+# This is the name of your node, as defined in the launch file.
+lio_sam_node:
+  # This is a required key for ROS 2 parameters.
+  ros__parameters:
+    # LiDAR parameters
+    lidar_min_range: 1.0          # Minimum range to consider points (meters)
+    lidar_max_range: 100.0        # Maximum range to consider points (meters)
+    voxel_size: 0.1               # Voxel grid downsampling size (meters)
+    
+    # Keyframe parameters (with the corrected, lower values)
+    keyframe_distance_threshold: 0.25   # Distance threshold for new keyframes (meters)
+    keyframe_angle_threshold: 0.05      # Angular threshold for new keyframes (radians)
+    
+    # Optimization parameters
+    optimization_frequency: 10     # Optimize every N keyframes
+    
+    # NEW PARAMETERS - Ground removal control
+    enable_ground_removal: true          # Enable/disable ground plane removal (DISABLED by default)
+    ground_distance_threshold: 0.2        # Distance threshold for ground plane detection (meters)
+    
+    # IMPORTANT NOTE:
+    # The following parameters (imu, crop_box, costmap, frames) are included
+    # here for completeness, but your current C++ code does NOT load them.
+    # The C++ code only loads the parameters listed above. To use these
+    # nested parameters, you would need to modify your C++ code to get
+    # them (e.g., this->get_parameter("imu.accelerometer_noise_density")).
+    # They are kept here so your config file remains complete.
+    
+    # IMU parameters (adjust based on your IMU specifications)
+    imu:
+      accelerometer_noise_density: 0.0565      # m/s^2/√Hz
+      gyroscope_noise_density: 0.004           # rad/s/√Hz
+      accelerometer_random_walk: 0.00002       # m/s^3/√Hz
+      gyroscope_random_walk: 0.00003           # rad/s^2/√Hz
+      integration_noise: 0.0                   # m/s^2
+    
+    # Point cloud processing
+    crop_box:
+      min_x: -100.0
+      max_x: 100.0
+      min_y: -100.0
+      max_y: 100.0
+      min_z: -3.0
+      max_z: 1.0
+    
+    # Costmap parameters
+    costmap:
+      resolution: 0.1               # meters per pixel
+      width: 2000                   # pixels (200m at 0.1m resolution)
+      height: 2000                  # pixels (200m at 0.1m resolution)
+      origin_x: -100.0              # meters
+      origin_y: -100.0              # meters
+    
+    # Frame IDs
+    frames:
+      map_frame: "map"
+      odom_frame: "odom"
+      base_link_frame: "base_link"
+      lidar_frame: "lidar_velodyne"  # <-- THIS IS THE FIX. Match the name from the TF tree.
+      imu_frame: "imu_link"          # This was already correct.
