@@ -1,9 +1,9 @@
-#!/usr/bin/env python3
+#! /usr/bin/env python3
 """
 A Sample for Localization of the rover using the Zed camera
 
 This sample predicts the position and orientation of the robot
-using the Zed-D camera
+using the Zed-D camera with IMU fusion
 """
 
 import os
@@ -18,6 +18,7 @@ from scipy.spatial.transform import Rotation as R
 from sensor_msgs.msg import Image, CameraInfo
 from cv_bridge import CvBridge
 import message_filters
+from sensor_msgs.msg import Imu
 
 class ZedVisualOdometry(Node):
     def __init__(self):
@@ -43,7 +44,16 @@ class ZedVisualOdometry(Node):
             self.camera_info_callback,
             10
         )
-    
+
+        self.imu_sub = self.create_subscription(
+            Imu,
+            '/left_cam/zed_node/imu/data',
+            self.imu_callback,
+            200
+        )
+
+        self.imu_queue = []
+
         self.get_logger().info("OAK Visual Odometry node initialized")
 
     def calc_essential_matrix(self, pts1, pts2):
@@ -91,15 +101,50 @@ class ZedVisualOdometry(Node):
         if pts1 is not None and len(pts1) > 8:
             T_k = self.calc_essential_matrix(pts1, pts2)
 
+            # Initialize IMU data variables
+            imu_times = np.array([])
+            accs = np.array([])
+            gyros = np.array([])
+            
+            # Get IMU data for the current time interval
+            if self.last_timestamp is not None:
+                imu_times, accs, gyros = self.integrate_imu(self.last_timestamp, timestamp)
+
+            # Scale estimation using IMU or visual information
             if self.frame_index > 1:
                 prev_pose = self.estimates[-1]
                 prev_prev_pose = self.estimates[-2]
-                prev_delta = prev_pose[:3, 3] - prev_prev_pose[:3, 3]
-                denom = np.linalg.norm(T_k[:3, 3])
-                scale = np.linalg.norm(prev_delta) / (denom + 1e-8)
-                T_k[:3, 3] *= scale
-                print(f"Scale at frame {i}: {scale:.4f}")
 
+                # Try to use IMU for scale estimation
+                if imu_times.shape[0] > 2:
+                    dt = imu_times[-1] - imu_times[0]
+                    # Remove gravity (assuming robot moves on roughly horizontal plane)
+                    gravity_compensated_acc = accs.copy()
+                    gravity_compensated_acc[:, 2] -= 9.81  # Remove gravity in Z direction
+                    
+                    velocity = np.mean(gravity_compensated_acc, axis=0) * dt  # crude integration
+                    scale = np.linalg.norm(velocity) * dt
+                    
+                    # Clamp scale to reasonable values to avoid outliers
+                    scale = np.clip(scale, 0.001, 2.0)
+                    T_k[:3, 3] *= scale
+                    print(f"IMU-derived scale at frame {i}: {scale:.4f}")
+                else:
+                    print("Insufficient IMU samples — falling back to visual scale")
+                    prev_delta = prev_pose[:3, 3] - prev_prev_pose[:3, 3]
+                    denom = np.linalg.norm(T_k[:3, 3])
+                    scale = np.linalg.norm(prev_delta) / (denom + 1e-8)
+                    # Clamp scale to reasonable values
+                    scale = np.clip(scale, 0.001, 2.0)
+                    T_k[:3, 3] *= scale
+                    print(f"Visual scale at frame {i}: {scale:.4f}")
+            else:
+                # For first few frames, use a default small scale
+                default_scale = 0.1
+                T_k[:3, 3] *= default_scale
+                print(f"Default scale at frame {i}: {default_scale:.4f}")
+
+            # Validate motion estimates
             translation_norm = np.linalg.norm(T_k[:3, 3])
             rotation_angle = np.linalg.norm(R.from_matrix(T_k[:3, :3]).as_rotvec())
 
@@ -107,12 +152,13 @@ class ZedVisualOdometry(Node):
                 self.get_logger().warn(f"Unrealistic motion at frame {i}: ∆={translation_norm:.3f}, θ={rotation_angle:.2f} rad — skipping")
                 return
 
+            # Update pose
             self.C_k = self.C_k @ T_k
             msg = self.create_odom_message(self.C_k, self.get_clock().now().to_msg())
             self.odom_pub.publish(msg)
 
             print(f"Pose at frame {i+1}:\n{self.C_k}\n")
-            self.estimates.append(self.C_k)
+            self.estimates.append(self.C_k.copy())
             self.frame_index += 1
 
     def match_features(self, img1, img2):
@@ -155,10 +201,11 @@ class ZedVisualOdometry(Node):
         odom.child_frame_id = 'base_link'
 
         odom.pose.pose.position = Point(
-            x=translation[0], y=translation[1], z=translation[2])
+            x=float(translation[0]), y=float(translation[1]), z=float(translation[2]))
         odom.pose.pose.orientation = Quaternion(
-            x=quaternion[0], y=quaternion[1], z=quaternion[2], w=quaternion[3])
+            x=float(quaternion[0]), y=float(quaternion[1]), z=float(quaternion[2]), w=float(quaternion[3]))
 
+        # Calculate velocity if we have previous estimates
         if self.last_timestamp is not None and len(self.estimates) > 1:
             dt = (timestamp.sec - self.last_timestamp.sec) + \
                  (timestamp.nanosec - self.last_timestamp.nanosec) * 1e-9
@@ -199,6 +246,31 @@ class ZedVisualOdometry(Node):
         plt.grid(True)
         plt.savefig(os.path.expanduser('~/ros_ws/trajectory.png'))
         self.get_logger().info("Trajectory visualization saved to trajectory.png")
+
+    def imu_callback(self, msg):
+        self.imu_queue.append(msg)
+
+        # Keep only recent IMU data to limit memory usage
+        if len(self.imu_queue) > 1000:
+            self.imu_queue.pop(0)
+
+    def integrate_imu(self, start_stamp, end_stamp):
+        imu_times = []
+        accs = []
+        gyros = []
+
+        start_time = start_stamp.sec + start_stamp.nanosec * 1e-9
+        end_time = end_stamp.sec + end_stamp.nanosec * 1e-9
+
+        for imu in self.imu_queue:
+            t = imu.header.stamp.sec + imu.header.stamp.nanosec * 1e-9
+            if start_time <= t <= end_time:
+                imu_times.append(t)
+                accs.append([imu.linear_acceleration.x, imu.linear_acceleration.y, imu.linear_acceleration.z])
+                gyros.append([imu.angular_velocity.x, imu.angular_velocity.y, imu.angular_velocity.z])
+
+        return np.array(imu_times), np.array(accs), np.array(gyros)
+
 
 def main(args=None):
     rclpy.init(args=args)
