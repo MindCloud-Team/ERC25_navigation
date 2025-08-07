@@ -4,6 +4,9 @@
 #include <nav_msgs/msg/occupancy_grid.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 #include <geometry_msgs/msg/pose_with_covariance_stamped.hpp>
+#include <geometry_msgs/msg/pose_array.hpp>
+#include <rovers_interfaces/msg/aruco_markers.hpp>
+#include <visualization_msgs/msg/marker_array.hpp>
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
@@ -77,11 +80,16 @@ private:
     rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr costmap_pub_;
     rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_pub_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr cloud_pub_;
+    
+    // Timer for regular costmap updates
+    rclcpp::TimerBase::SharedPtr costmap_timer_;
 
     rclcpp::Time last_imu_time_;
     bool first_imu_received_ = false;
 
     bool is_stationary_;
+
+    rclcpp::Subscription<rovers_interfaces::msg::ArucoMarkers>::SharedPtr aruco_tag_sub_;
 
     // Scan Context parameters
     const int PC_NUM_RING = 20; // Number of rings (rows) in the descriptor
@@ -196,7 +204,12 @@ private:
             
         imu_sub_ = this->create_subscription<sensor_msgs::msg::Imu>(
             "/imu/data", 100,
-            std::bind(&LIOSAMNode::imuCallback, this, std::placeholders::_1));
+std::bind(&LIOSAMNode::imuCallback, this, std::placeholders::_1));
+
+        // Subscribe to ArUco markers
+        aruco_tag_sub_ = this->create_subscription<rovers_interfaces::msg::ArucoMarkers>(
+            "aruco_markers", 10,
+            std::bind(&LIOSAMNode::arucoTagCallback, this, std::placeholders::_1));
     }
     
     void initializePublishers()
@@ -208,6 +221,11 @@ private:
         tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
         tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
         tf_listener_ = std::make_unique<tf2_ros::TransformListener>(*tf_buffer_);
+        
+        // Create timer for regular costmap updates (every 2 seconds)
+        costmap_timer_ = this->create_wall_timer(
+            std::chrono::seconds(2),
+            std::bind(&LIOSAMNode::timerCostmapCallback, this));
     }
 
     Eigen::MatrixXd makeScanContext(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud)
@@ -237,7 +255,8 @@ private:
     void detectLoopClosure(const Pose3& current_pose, int current_keyframe_id)
     {
         // Don't try to find loops until we have enough keyframes in the database
-        if (keyframe_clouds_.size() < 20) return;
+        // if (keyframe_clouds_.size() < 20) return;
+        return;
 
         // Create the Scan Context for the current keyframe
         Eigen::MatrixXd current_sc = makeScanContext(keyframe_clouds_.back());
@@ -296,6 +315,15 @@ private:
             sum_dist += (desc1.col(i) - desc2.col(i)).norm();
         }
         return sum_dist / desc1.cols();
+    }
+    
+    // Timer callback for regular costmap updates
+    void timerCostmapCallback()
+    {
+        if (system_initialized_ && keyframe_clouds_.size() > 0) {
+            RCLCPP_DEBUG(this->get_logger(), "Timer-based costmap update with %zu keyframes", keyframe_clouds_.size());
+            updateCostmap();
+        }
     }
     
     void initializePointCloudProcessing()
@@ -518,7 +546,7 @@ private:
 
         // Create a local map from recent keyframes
         pcl::PointCloud<pcl::PointXYZ>::Ptr local_map(new pcl::PointCloud<pcl::PointXYZ>());
-        int start_index = std::max(0, (int)keyframe_clouds_.size() - 5); // Use fewer keyframes for stability
+        int start_index = std::max(0, (int)keyframe_clouds_.size() - 10); // Use more keyframes for better context
         
         for (size_t i = start_index; i < keyframe_clouds_.size(); ++i) {
             Pose3 keyframe_pose;
@@ -541,13 +569,13 @@ private:
         voxel_filter_.setInputCloud(local_map);
         voxel_filter_.filter(*downsampled_local_map);
 
-        // ICP configuration
+        // ICP configuration - relaxed for stability and reduced drift
         pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
         icp.setInputTarget(downsampled_local_map);
-        icp.setMaximumIterations(30); // Reduced iterations
-        icp.setTransformationEpsilon(1e-6);
-        icp.setEuclideanFitnessEpsilon(0.1); // More lenient fitness
-        icp.setMaxCorrespondenceDistance(1.5); // Reduced for more stable matching
+        icp.setMaximumIterations(30); // Reasonable iterations
+        icp.setTransformationEpsilon(1e-6); // Less strict convergence
+        icp.setEuclideanFitnessEpsilon(0.3); // More lenient fitness
+        icp.setMaxCorrespondenceDistance(2.0); // Looser correspondence for stability
 
         // Get IMU prediction for initial guess
         NavState predicted_state = imu_preintegrated_->predict(prev_state_, prev_bias_);
@@ -562,7 +590,7 @@ private:
         pcl::PointCloud<pcl::PointXYZ> aligned_cloud;
         icp.align(aligned_cloud);
 
-        if (icp.hasConverged() && icp.getFitnessScore() < 1.0) // Check fitness score
+        if (icp.hasConverged() && icp.getFitnessScore() < 2.0) // More lenient fitness score check
         {
             Eigen::Matrix4f correction_transform = icp.getFinalTransformation();
             Pose3 final_pose = eigenMatrixToGtsamPose(correction_transform * initial_guess);
@@ -706,6 +734,21 @@ private:
         }
     }
 
+    void arucoTagCallback(const rovers_interfaces::msg::ArucoMarkers::SharedPtr msg)
+    {
+        for (size_t i = 0; i < msg->marker_ids.size() - 1; ++i) {
+            const auto& pose1 = msg->poses[i].position;
+            const auto& pose2 = msg->poses[i + 1].position;
+
+            int x0 = (pose1.x - costmap_.info.origin.position.x) / costmap_.info.resolution;
+            int y0 = (pose1.y - costmap_.info.origin.position.y) / costmap_.info.resolution;
+            int x1 = (pose2.x - costmap_.info.origin.position.x) / costmap_.info.resolution;
+            int y1 = (pose2.y - costmap_.info.origin.position.y) / costmap_.info.resolution;
+
+            raytraceLine(x0, y0, x1, y1);
+        }
+    }
+
     void updateCostmap()
     {
         // Initialize the map to all -1 (unknown)
@@ -789,7 +832,7 @@ private:
         // Publish the Odometry Message
         nav_msgs::msg::Odometry odom;
         odom.header.stamp = timestamp;
-        odom.header.frame_id = "map";
+        odom.header.frame_id = "odom";
         odom.child_frame_id = "base_link";
         
         auto translation = pose.translation();
@@ -813,11 +856,11 @@ private:
         
         odom_pub_->publish(odom);
 
-        // Broadcast the TF Transform
+        // Broadcast the TF Transform (map -> odom)
         geometry_msgs::msg::TransformStamped tf_stamped;
         tf_stamped.header.stamp = timestamp;
         tf_stamped.header.frame_id = "map";
-        tf_stamped.child_frame_id = "base_link";
+        tf_stamped.child_frame_id = "odom";
         tf_stamped.transform.translation.x = translation.x();
         tf_stamped.transform.translation.y = translation.y();
         tf_stamped.transform.translation.z = translation.z();

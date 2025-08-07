@@ -8,16 +8,16 @@ lio_sam_node:
     lidar_max_range: 100.0        # Maximum range to consider points (meters)
     voxel_size: 0.1               # Voxel grid downsampling size (meters)
     
-    # Keyframe parameters (with the corrected, lower values)
-    keyframe_distance_threshold: 0.25   # Distance threshold for new keyframes (meters)
-    keyframe_angle_threshold: 0.05      # Angular threshold for new keyframes (radians)
+    # Keyframe parameters (balanced for stability vs updates)
+    keyframe_distance_threshold: 2.0    # Distance threshold for new keyframes (meters)
+    keyframe_angle_threshold: 0.3       # Angular threshold for new keyframes (radians)
     
     # Optimization parameters
     optimization_frequency: 10     # Optimize every N keyframes
     
     # NEW PARAMETERS - Ground removal control
-    enable_ground_removal: true          # Enable/disable ground plane removal (DISABLED by default)
-    ground_distance_threshold: 0.2        # Distance threshold for ground plane detection (meters)
+    enable_ground_removal: true          # Enable/disable ground plane removal (ENABLED for 3D LiDAR)
+    ground_distance_threshold: 0.3        # Distance threshold for ground plane detection (meters)
     
     # IMPORTANT NOTE:
     # The following parameters (imu, crop_box, costmap, frames) are included

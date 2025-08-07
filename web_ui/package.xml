@@ -1,24 +1,23 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>lidar_odometry</name>
+  <name>web_ui</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
-  <maintainer email="ibrahimsalem6622005@gmail.com">ibrahim</maintainer>
-  <license>TODO: License declaration</license>
+  <description>Web-based UI for ROS2 rover control and monitoring using rosbridge</description>
+  <maintainer email="bab@todo.todo">bab</maintainer>
+  <license>MIT</license>
+
+  <depend>rosbridge_suite</depend>
+  
+  <exec_depend>python3-flask</exec_depend>
+  <exec_depend>python3-tornado</exec_depend>
+  <exec_depend>python3-flask-socketio</exec_depend>
+  <exec_depend>python3-eventlet</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
   <test_depend>ament_pep257</test_depend>
   <test_depend>python3-pytest</test_depend>
-  
-  <exec_depend>rclpy</exec_depend>
-  <exec_depend>launch</exec_depend>
-  <exec_depend>sensor_msgs_py</exec_depend>
-  <exec_depend>python3-open3d</exec_depend>
-
-  <depend>sensor_msgs</depend>
-
 
   <export>
     <build_type>ament_python</build_type>

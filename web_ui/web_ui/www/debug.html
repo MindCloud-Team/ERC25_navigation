@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Web UI Connection</title>
+    <script src="https://cdn.jsdelivr.net/gh/RobotWebTools/roslibjs/build/roslib.min.js"></script>
+</head>
+<body>
+    <h1>Debug Web UI Connection</h1>
+    <div id="status">Connecting...</div>
+    <div id="map-info">Map info will appear here</div>
+    <div id="topics">Available topics will appear here</div>
+    
+    <script>
+        const statusDiv = document.getElementById('status');
+        const mapInfoDiv = document.getElementById('map-info');
+        const topicsDiv = document.getElementById('topics');
+        
+        // Try to connect to rosbridge
+        const ros = new ROSLIB.Ros({ url: 'ws://localhost:9090' });
+        
+        ros.on('connection', () => {
+            statusDiv.innerHTML = '✅ Connected to rosbridge!';
+            statusDiv.style.color = 'green';
+            
+            // Try to subscribe to the map topic
+            const mapTopic = new ROSLIB.Topic({
+                ros: ros,
+                name: '/costmap',
+                messageType: 'nav_msgs/msg/OccupancyGrid'
+            });
+            
+            mapTopic.subscribe((message) => {
+                console.log('🗺️ Received map data:', message);
+                mapInfoDiv.innerHTML = `
+                    <h3>Map Data Received:</h3>
+                    <p>Width: ${message.info.width}</p>
+                    <p>Height: ${message.info.height}</p>
+                    <p>Resolution: ${message.info.resolution}</p>
+                    <p>Data length: ${message.data.length}</p>
+                    <p>Frame ID: ${message.header.frame_id}</p>
+                `;
+            });
+            
+            // Get available topics
+            ros.getTopics((result) => {
+                console.log('Available topics:', result);
+                const mapTopics = result.topics.filter(topic => topic.includes('map') || topic.includes('costmap'));
+                topicsDiv.innerHTML = `
+                    <h3>Map-related topics:</h3>
+                    <ul>
+                        ${mapTopics.map(topic => `<li>${topic}</li>`).join('')}
+                    </ul>
+                `;
+            });
+        });
+        
+        ros.on('error', (error) => {
+            statusDiv.innerHTML = '❌ Error connecting to rosbridge: ' + error;
+            statusDiv.style.color = 'red';
+            console.error('Connection error:', error);
+        });
+        
+        ros.on('close', () => {
+            statusDiv.innerHTML = '🔌 Connection closed';
+            statusDiv.style.color = 'orange';
+        });
+    </script>
+</body>
+</html> 

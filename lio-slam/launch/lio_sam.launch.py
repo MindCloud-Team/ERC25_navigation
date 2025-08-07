@@ -35,39 +35,7 @@ def generate_launch_description():
         ]
     )
     
-    # RViz node for visualization
-    rviz_config_file = os.path.join(pkg_dir, 'config', 'lio_sam.rviz')
-    rviz_node = Node(
-        package='rviz2',
-        executable='rviz2',
-        name='rviz2',
-        arguments=['-d', rviz_config_file],
-        parameters=[{'use_sim_time': LaunchConfiguration('use_sim_time')}],
-        output='screen'
-    )
-    
-    # Static transform from base_link to lidar
-    # static_tf_lidar = Node(
-    #     package='tf2_ros',
-    #     executable='static_transform_publisher',
-    #     name='static_tf_lidar',
-    #     arguments=['0', '0', '0', '0', '0', '0', 'base_link', 'velodyne'],
-    #     parameters=[{'use_sim_time': LaunchConfiguration('use_sim_time')}]
-    # )
-    #
-    # # Static transform from base_link to imu
-    # static_tf_imu = Node(
-    #     package='tf2_ros',
-    #     executable='static_transform_publisher',
-    #     name='static_tf_imu',
-    #     arguments=['0', '0', '0', '0', '0', '0', 'base_link', 'imu_link'],
-    #     parameters=[{'use_sim_time': LaunchConfiguration('use_sim_time')}]
-    # )
-
     return LaunchDescription([
         use_sim_time_arg,
         lio_sam_node,
-        rviz_node,
-        # static_tf_lidar,
-        # static_tf_imu
     ])

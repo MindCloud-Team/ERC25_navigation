@@ -1,0 +1,33 @@
+{
+  "topics": {
+    "cameras": {
+      "front": "/${camera}_cam/zed_node/rgb/image_rect_color",
+      "back": "/${camera}_cam/zed_node/rgb/image_rect_color", 
+      "left": "/${camera}_cam/zed_node/rgb/image_rect_color",
+      "right": "/${camera}_cam/zed_node/rgb/image_rect_color"
+    },
+    "sensors": {
+      "imu": "/imu/data",
+      "battery": "/battery/battery_status",
+      "estop": "/hardware/e_stop",
+      "odometry": "/odometry/filtered",
+      "joy": "/joy"
+    },
+    "navigation": {
+      "map": "/costmap",
+      "cmd_vel": "/cmd_vel",
+      "goal_pose": "/goal_pose"
+    }
+  },
+  "message_types": {
+    "cameras": "sensor_msgs/msg/Image",
+    "imu": "sensor_msgs/msg/Imu",
+    "battery": "sensor_msgs/msg/BatteryState", 
+    "estop": "std_msgs/msg/Bool",
+    "odometry": "nav_msgs/msg/Odometry",
+    "joy": "sensor_msgs/msg/Joy",
+    "map": "nav_msgs/msg/OccupancyGrid",
+    "cmd_vel": "geometry_msgs/msg/TwistStamped",
+    "goal_pose": "geometry_msgs/msg/PoseStamped"
+  }
+}

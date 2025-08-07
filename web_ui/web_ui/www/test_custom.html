@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Custom Web UI Test</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #1a1a2e;
+            color: white;
+            padding: 20px;
+        }
+        .test-section {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .success { background: #4CAF50; }
+        .error { background: #f44336; }
+        .info { background: #2196F3; }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #45a049; }
+        .data-display {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Custom Web UI Test</h1>
+    <p>Testing direct ROS2 communication without external dependencies</p>
+
+    <div class="test-section">
+        <h2>🔌 Connection Test</h2>
+        <div id="connection-status" class="status info">Connecting...</div>
+        <button onclick="testConnection()">Test Connection</button>
+    </div>
+
+    <div class="test-section">
+        <h2>📡 Data Reception Test</h2>
+        <div id="data-status" class="status info">Waiting for data...</div>
+        <div id="received-data" class="data-display">No data received yet</div>
+    </div>
+
+    <div class="test-section">
+        <h2>🎮 Control Test</h2>
+        <button onclick="sendCmdVel(1, 0, 0)">Forward</button>
+        <button onclick="sendCmdVel(-1, 0, 0)">Backward</button>
+        <button onclick="sendCmdVel(0, 0, 1)">Turn Left</button>
+        <button onclick="sendCmdVel(0, 0, -1)">Turn Right</button>
+        <button onclick="sendCmdVel(0, 0, 0)">Stop</button>
+    </div>
+
+    <div class="test-section">
+        <h2>📊 API Test</h2>
+        <button onclick="testAPI()">Test API Endpoints</button>
+        <div id="api-results" class="data-display">API test results will appear here</div>
+    </div>
+
+    <script>
+        let socket = null;
+        let connected = false;
+        let dataReceived = false;
+
+        // Initialize Socket.IO connection
+        function initConnection() {
+            console.log('🔌 Connecting to custom WebSocket server...');
+            socket = io();
+
+            socket.on('connect', () => {
+                console.log('✅ Connected to WebSocket server');
+                connected = true;
+                updateConnectionStatus('Connected to WebSocket server', 'success');
+            });
+
+            socket.on('disconnect', () => {
+                console.log('❌ Disconnected from WebSocket server');
+                connected = false;
+                updateConnectionStatus('Disconnected from WebSocket server', 'error');
+            });
+
+            // Listen for various data types
+            socket.on('map_data', (data) => {
+                console.log('🗺️ Received map data:', data);
+                updateDataStatus('Map data received', 'success');
+                document.getElementById('received-data').textContent = 
+                    `Map: ${data.width}x${data.height}, Resolution: ${data.resolution}`;
+            });
+
+            socket.on('imu_data', (data) => {
+                console.log('📊 Received IMU data:', data);
+                updateDataStatus('IMU data received', 'success');
+                document.getElementById('received-data').textContent = 
+                    `IMU: Accel(${data.accel.x.toFixed(2)}, ${data.accel.y.toFixed(2)}, ${data.accel.z.toFixed(2)})`;
+            });
+
+            socket.on('battery_data', (data) => {
+                console.log('🔋 Received battery data:', data);
+                updateDataStatus('Battery data received', 'success');
+                document.getElementById('received-data').textContent = 
+                    `Battery: ${data.voltage}V, ${data.current}A, ${(data.percentage * 100).toFixed(0)}%`;
+            });
+
+            socket.on('estop_data', (data) => {
+                console.log('🛑 Received E-stop data:', data);
+                updateDataStatus('E-stop data received', 'success');
+                document.getElementById('received-data').textContent = 
+                    `E-stop: ${data.pressed ? 'PRESSED' : 'OK'}`;
+            });
+
+            socket.on('odometry_data', (data) => {
+                console.log('📍 Received odometry data:', data);
+                updateDataStatus('Odometry data received', 'success');
+                document.getElementById('received-data').textContent = 
+                    `Odometry: Pos(${data.pos.x.toFixed(2)}, ${data.pos.y.toFixed(2)}), Vel(${data.vel.linear.toFixed(2)})`;
+            });
+
+            socket.on('camera_data', (data) => {
+                console.log('📹 Received camera data:', data);
+                updateDataStatus('Camera data received', 'success');
+                document.getElementById('received-data').textContent = 
+                    `Camera: ${data.camera}, Image size: ${data.image ? data.image.length : 0} chars`;
+            });
+
+            socket.on('latest_data', (data) => {
+                console.log('📦 Received latest data:', data);
+                updateDataStatus('Latest data received', 'success');
+                document.getElementById('received-data').textContent = 
+                    `Latest data: ${Object.keys(data).join(', ')}`;
+            });
+        }
+
+        function updateConnectionStatus(message, type) {
+            const status = document.getElementById('connection-status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+        }
+
+        function updateDataStatus(message, type) {
+            const status = document.getElementById('data-status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+            dataReceived = true;
+        }
+
+        function testConnection() {
+            if (connected) {
+                updateConnectionStatus('Connection is working!', 'success');
+            } else {
+                updateConnectionStatus('Connection failed!', 'error');
+            }
+        }
+
+        function sendCmdVel(linearX, linearY, angularZ) {
+            if (connected && socket) {
+                socket.emit('cmd_vel', {
+                    linear_x: linearX,
+                    linear_y: linearY,
+                    angular_z: angularZ
+                });
+                console.log(`🎮 Sent cmd_vel: linear(${linearX}, ${linearY}), angular(${angularZ})`);
+            } else {
+                console.error('❌ Not connected to server');
+            }
+        }
+
+        async function testAPI() {
+            const results = document.getElementById('api-results');
+            results.textContent = 'Testing API endpoints...';
+
+            try {
+                // Test latest data endpoint
+                const response = await fetch('/api/latest_data');
+                const data = await response.json();
+                
+                results.textContent = `API Test Results:\n` +
+                    `- Latest data endpoint: ${response.ok ? 'OK' : 'FAILED'}\n` +
+                    `- Data keys: ${Object.keys(data).join(', ')}\n` +
+                    `- Response status: ${response.status}`;
+            } catch (error) {
+                results.textContent = `API Test Failed: ${error.message}`;
+            }
+        }
+
+        // Initialize connection when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            initConnection();
+        });
+    </script>
+</body>
+</html>

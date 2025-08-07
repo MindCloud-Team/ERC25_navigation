@@ -1,0 +1,69 @@
+# Camera calibration parameters for each camera
+# Replace these with your actual calibration data from camera_calibrator or similar tools
+
+cameras:
+  front_cam:
+    camera_matrix:
+      rows: 3
+      cols: 3
+      data: [672.0, 0.0, 320.0,
+             0.0, 672.0, 240.0,
+             0.0, 0.0, 1.0]
+    distortion_coefficients:
+      rows: 1
+      cols: 5
+      data: [0.0, 0.0, 0.0, 0.0, 0.0]
+    
+  back_cam:
+    camera_matrix:
+      rows: 3
+      cols: 3
+      data: [672.0, 0.0, 320.0,
+             0.0, 672.0, 240.0,
+             0.0, 0.0, 1.0]
+    distortion_coefficients:
+      rows: 1
+      cols: 5
+      data: [0.0, 0.0, 0.0, 0.0, 0.0]
+    
+  left_cam:
+    camera_matrix:
+      rows: 3
+      cols: 3
+      data: [672.0, 0.0, 320.0,
+             0.0, 672.0, 240.0,
+             0.0, 0.0, 1.0]
+    distortion_coefficients:
+      rows: 1
+      cols: 5
+      data: [0.0, 0.0, 0.0, 0.0, 0.0]
+    
+  right_cam:
+    camera_matrix:
+      rows: 3
+      cols: 3
+      data: [672.0, 0.0, 320.0,
+             0.0, 672.0, 240.0,
+             0.0, 0.0, 1.0]
+    distortion_coefficients:
+      rows: 1
+      cols: 5
+      data: [0.0, 0.0, 0.0, 0.0, 0.0]
+
+# ArUco detection parameters
+aruco:
+  marker_size: 0.05  # meters
+  dictionary: "DICT_6X6_250"
+  
+# LiDAR fusion parameters  
+lidar:
+  search_radius: 0.5  # meters
+  max_time_diff: 0.1  # seconds
+  
+# Transform frame names
+frames:
+  base_link: "base_link"
+  front_camera: "front_camera_optical_frame"
+  back_camera: "back_camera_optical_frame"
+  left_camera: "left_camera_optical_frame"
+  right_camera: "right_camera_optical_frame"

@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧠 Mind Cloud Rover Control</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Socket.IO for real-time communication -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1 class="title">
+                    <i class="fas fa-brain"></i>
+                    Mind Cloud Rover Control
+                </h1>
+                <div class="status-indicators">
+                    <div class="status-item" id="connection-status">
+                        <i class="fas fa-wifi"></i>
+                        <span>Connecting...</span>
+                    </div>
+                    <div class="status-item" id="e-stop-status">
+                        <i class="fas fa-hand-paper"></i>
+                        <span>E-STOP: OK</span>
+                    </div>
+                    <div class="status-item" id="battery-status">
+                        <i class="fas fa-battery-three-quarters"></i>
+                        <span id="battery-percentage">0%</span>
+                        <div class="battery-mini-bar">
+                            <div id="battery-fill" class="battery-fill"></div>
+                        </div>
+                    </div>
+                    <div class="status-item" id="joystick-status">
+                        <i class="fas fa-gamepad"></i>
+                        <span>🎮 Disconnected</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Top Row: Map and Controls -->
+            <div class="top-section">
+                <!-- Map Section -->
+                <div class="map-section">
+                    <div class="section-title">
+                        <i class="fas fa-map"></i>
+                        Map
+                    </div>
+                    <div class="map-container">
+                        <canvas id="map-canvas" width="400" height="400"></canvas>
+                    </div>
+                </div>
+
+                <!-- Robot Control Panel -->
+                <div class="control-section">
+                    <div class="section-title">
+                        <i class="fas fa-robot"></i>
+                        Robot Control
+                    </div>
+                    
+                    <!-- Controls Row: Keyboard + Joystick -->
+                    <div class="controls-row">
+                        <!-- Keyboard Controls -->
+                        <div class="keyboard-controls">
+                            <h3>Keyboard Controls</h3>
+                            <div class="key-layout">
+                                <div class="key-row">
+                                    <div class="key" data-key="q">Q</div>
+                                    <div class="key" data-key="w">W</div>
+                                    <div class="key" data-key="e">E</div>
+                                </div>
+                                <div class="key-row">
+                                    <div class="key" data-key="a">A</div>
+                                    <div class="key" data-key="s">S</div>
+                                    <div class="key" data-key="d">D</div>
+                                </div>
+                            </div>
+                            <div class="key-legend">
+                                <div>W/S: Forward/Backward</div>
+                                <div>A/D: Turn Left/Right</div>
+                                <div>Q/E: Strafe Left/Right</div>
+                                <div>SPACE: Swap Front/Back Camera</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Joystick -->
+                        <div class="joystick-container">
+                            <div class="joystick-area" id="joystick-area">
+                                <div class="joystick-knob" id="joystick-knob"></div>
+                            </div>
+                            <div class="joystick-info">
+                                <span>Linear: <span id="linear-display">0.0</span></span>
+                                <span>Angular: <span id="angular-display">0.0</span></span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- IMU Orientation - Arrow Only -->
+                    <div class="imu-side-display">
+                        <div class="imu-compact-container">
+                            <canvas id="imu-arrow" width="60" height="60"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Camera Grid - Front/Back in Middle -->
+            <section class="camera-section">
+                <h2 class="section-title">
+                    <i class="fas fa-video"></i>
+                    Camera Feeds
+                </h2>
+                <div class="camera-grid">
+                    <div class="camera-container" id="left-camera">
+                        <div class="camera-header">
+                            <i class="fas fa-arrow-left"></i>
+                            Left Camera
+                        </div>
+                        <div class="camera-frame">
+                            <img id="left-cam-img" class="camera-img" alt="Left Camera Feed">
+                            <div class="camera-overlay">No Signal</div>
+                        </div>
+                    </div>
+                    
+                    <div class="camera-container primary-camera" id="center-camera">
+                        <div class="camera-header">
+                            <i class="fas fa-arrow-up" id="center-camera-icon"></i>
+                            <span id="center-camera-label">Front Camera</span>
+                        </div>
+                        <div class="camera-frame">
+                            <img id="center-cam-img" class="camera-img" alt="Center Camera Feed">
+                            <div class="camera-overlay">No Signal</div>
+                        </div>
+                    </div>
+                    
+                    <div class="camera-container" id="right-camera">
+                        <div class="camera-header">
+                            <i class="fas fa-arrow-right"></i>
+                            Right Camera
+                        </div>
+                        <div class="camera-frame">
+                            <img id="right-cam-img" class="camera-img" alt="Right Camera Feed">
+                            <div class="camera-overlay">No Signal</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/eventemitter2/6.4.9/eventemitter2.min.js"></script>
+    <script src="app.js?v=20250806110128"></script>
+</body>
+</html>
