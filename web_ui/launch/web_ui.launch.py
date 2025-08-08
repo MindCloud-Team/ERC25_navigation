@@ -20,6 +20,12 @@ def generate_launch_description():
         default_value='0.0.0.0',
         description='Host address for the web server'
     )
+
+    topics_config_arg = DeclareLaunchArgument(
+        'topics_config',
+        default_value='config/topics.json',
+        description='Relative or absolute path to the topics configuration JSON file (relative paths are resolved under the web_ui/www directory)'
+    )
     
     # Web UI server node
     web_ui_node = Node(
@@ -29,13 +35,15 @@ def generate_launch_description():
         output='screen',
         parameters=[{
             'port': LaunchConfiguration('port'),
-            'host': LaunchConfiguration('host')
+            'host': LaunchConfiguration('host'),
+            'topics_config': LaunchConfiguration('topics_config')
         }]
     )
     
     return LaunchDescription([
         port_arg,
         host_arg,
+        topics_config_arg,
         web_ui_node
     ])
 

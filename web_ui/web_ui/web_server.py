@@ -59,9 +59,17 @@ class CustomROSNode(Node):
         # Declare parameters
         self.declare_parameter('port', 8080)
         self.declare_parameter('host', '0.0.0.0')
+        self.declare_parameter('topics_config', 'config/topics.json')
         
         # Initialize CV bridge for image processing
         self.bridge = cv_bridge.CvBridge()
+        
+        # Load topics configuration
+        self.topics_config = self.load_topics_config()
+        if self.topics_config:
+            self.get_logger().info('Loaded topics configuration')
+        else:
+            self.get_logger().warn('Failed to load topics configuration, using hardcoded defaults')
         
         # Store latest data
         self.latest_data = {
@@ -84,83 +92,84 @@ class CustomROSNode(Node):
         self.broadcast_thread = threading.Thread(target=self.broadcast_data, daemon=True)
         self.broadcast_thread.start()
 
+    def resolve_topics_path(self, config_value: str) -> str:
+        """Resolve the topics config file path, supporting absolute or path relative to www."""
+        try:
+            if os.path.isabs(config_value) and os.path.exists(config_value):
+                return config_value
+            # Resolve relative to the www directory we serve
+            base_dir = get_package_share_path()
+            candidate = os.path.join(base_dir, config_value)
+            if os.path.exists(candidate):
+                return candidate
+        except Exception:
+            pass
+        # Fallback to default bundled file
+        fallback = os.path.join(get_package_share_path(), 'config', 'topics.json')
+        return fallback
+
+    def load_topics_config(self):
+        """Load topics config JSON into memory."""
+        try:
+            cfg_param = self.get_parameter('topics_config').get_parameter_value().string_value
+            cfg_path = self.resolve_topics_path(cfg_param)
+            with open(cfg_path, 'r') as f:
+                return json.load(f)
+        except Exception as exc:
+            self.get_logger().error(f'Could not load topics config: {exc}')
+            return None
+
     def setup_subscribers(self):
         """Setup all ROS2 subscribers"""
-        
+        topics = (self.topics_config or {}).get('topics', {})
+        sensors = topics.get('sensors', {})
+        navigation = topics.get('navigation', {})
+        cameras = topics.get('cameras', {})
+
+        # Resolve sensor and navigation topics with safe fallbacks
+        map_topic = navigation.get('map', '/costmap')
+        imu_topic = sensors.get('imu', '/imu/data')
+        battery_topic = sensors.get('battery', '/battery/battery_status')
+        estop_topic = sensors.get('estop', '/hardware/e_stop')
+        odom_topic = sensors.get('odometry', '/odometry/filtered')
+
         # Map subscriber
-        self.map_sub = self.create_subscription(
-            OccupancyGrid,
-            '/costmap',
-            self.map_callback,
-            10
-        )
-        
+        self.map_sub = self.create_subscription(OccupancyGrid, map_topic, self.map_callback, 10)
         # IMU subscriber
-        self.imu_sub = self.create_subscription(
-            Imu,
-            '/imu/data',
-            self.imu_callback,
-            10
-        )
-        
+        self.imu_sub = self.create_subscription(Imu, imu_topic, self.imu_callback, 10)
         # Battery subscriber
-        self.battery_sub = self.create_subscription(
-            BatteryState,
-            '/battery/battery_status',
-            self.battery_callback,
-            10
-        )
-        
+        self.battery_sub = self.create_subscription(BatteryState, battery_topic, self.battery_callback, 10)
         # E-stop subscriber
-        self.estop_sub = self.create_subscription(
-            Bool,
-            '/hardware/e_stop',
-            self.estop_callback,
-            10
-        )
-        
+        self.estop_sub = self.create_subscription(Bool, estop_topic, self.estop_callback, 10)
         # Odometry subscriber
-        self.odom_sub = self.create_subscription(
-            Odometry,
-            '/odometry/filtered',
-            self.odometry_callback,
-            10
-        )
-        
-        # Camera subscribers
-        camera_topics = [
-            '/front_cam/zed_node/rgb/image_rect_color',
-            '/back_cam/zed_node/rgb/image_rect_color',
-            '/left_cam/zed_node/rgb/image_rect_color',
-            '/right_cam/zed_node/rgb/image_rect_color'
-        ]
-        
+        self.odom_sub = self.create_subscription(Odometry, odom_topic, self.odometry_callback, 10)
+
+        # Camera subscribers based on config
         self.camera_subs = {}
-        for topic in camera_topics:
-            camera_name = topic.split('/')[1]  # front_cam, back_cam, etc.
-            self.camera_subs[camera_name] = self.create_subscription(
-                Image,
-                topic,
-                lambda msg, name=camera_name: self.camera_callback(msg, name),
-                5
-            )
+        # Expected camera labels
+        for label in ['front', 'back', 'left', 'right']:
+            if label in cameras:
+                topic_template = cameras[label]
+                topic_resolved = topic_template.replace('${camera}', label)
+                self.camera_subs[label] = self.create_subscription(
+                    Image,
+                    topic_resolved,
+                    lambda msg, name=label: self.camera_callback(msg, name),
+                    5
+                )
 
     def setup_publishers(self):
         """Setup ROS2 publishers"""
-        
+        topics = (self.topics_config or {}).get('topics', {})
+        navigation = topics.get('navigation', {})
+        cmd_vel_topic = navigation.get('cmd_vel', '/cmd_vel')
+        goal_pose_topic = navigation.get('goal_pose', '/goal_pose')
+
         # Command velocity publisher
-        self.cmd_vel_pub = self.create_publisher(
-            TwistStamped,
-            '/cmd_vel',
-            10
-        )
+        self.cmd_vel_pub = self.create_publisher(TwistStamped, cmd_vel_topic, 10)
         
         # Goal pose publisher
-        self.goal_pose_pub = self.create_publisher(
-            PoseStamped,
-            '/goal_pose',
-            10
-        )
+        self.goal_pose_pub = self.create_publisher(PoseStamped, goal_pose_topic, 10)
 
     def map_callback(self, msg):
         """Handle map data"""
@@ -376,6 +385,20 @@ def get_latest_data():
                 data[key] = value
         return jsonify(data)
     return jsonify({})
+
+@app.route('/api/config/topics')
+def get_topics_config():
+    """Serve the active topics configuration to the frontend."""
+    global ros_node
+    if ros_node and getattr(ros_node, 'topics_config', None):
+        return jsonify(ros_node.topics_config)
+    # Fallback: attempt to load default from disk
+    try:
+        default_path = os.path.join(www_path, 'config', 'topics.json')
+        with open(default_path, 'r') as f:
+            return jsonify(json.load(f))
+    except Exception:
+        return jsonify({})
 
 @app.route('/api/cmd_vel', methods=['POST'])
 def cmd_vel():

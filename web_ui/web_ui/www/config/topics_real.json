@@ -1,0 +1,33 @@
+{
+"topics": {
+    "cameras": {
+    "front": "/panther/camera_front/image_raw/image",
+    "back": "/panther/camera_back/image_raw/image",
+    "left": "/panther/camera_left/image_raw/image",
+    "right": "/panther/camera_right/image_raw/image"
+    },
+    "sensors": {
+    "imu": "/panther/imu/data",
+    "battery": "/panther/battery/battery_status",
+    "estop": "/panther/hardware/e_stop",
+    "odometry": "/panther/odometry/filtered",
+    "joy": "/panther/joy"
+    },
+    "navigation": {
+    "map": "/costmap",
+    "cmd_vel": "/panther/cmd_vel",
+    "goal_pose": "/goal_pose"
+    }
+},
+"message_types": {
+    "cameras": "sensor_msgs/msg/Image",
+    "imu": "sensor_msgs/msg/Imu",
+    "battery": "sensor_msgs/msg/BatteryState",
+    "estop": "std_msgs/msg/Bool",
+    "odometry": "nav_msgs/msg/Odometry",
+    "joy": "sensor_msgs/msg/Joy",
+    "map": "nav_msgs/msg/OccupancyGrid",
+    "cmd_vel": "geometry_msgs/msg/TwistStamped",
+    "goal_pose": "geometry_msgs/msg/PoseStamped"
+}
+}

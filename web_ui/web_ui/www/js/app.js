@@ -22,8 +22,16 @@ class RoverWebUI {
 
     async loadConfiguration() {
         try {
-            const response = await fetch('topics.json');
+            // Ask backend for the active topics configuration selected via launch param
+            const response = await fetch('/api/config/topics');
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
             this.config = await response.json();
+            // Normalize camera topic names to known keys for the UI logic
+            if (!this.config.topics) this.config.topics = {};
+            if (!this.config.topics.cameras) this.config.topics.cameras = {};
+            // The UI uses keys 'front','back','left','right'
         } catch (error) {
             console.error('❌ Failed to load configuration:', error);
             // Fallback configuration
@@ -255,7 +263,11 @@ class RoverWebUI {
     }
     
     updateCameraData(data) {
-        const cameraName = data.camera;
+        // Normalize camera name to keys: 'front','back','left','right'
+        let cameraName = data.camera || '';
+        if (cameraName.endsWith('_cam')) {
+            cameraName = cameraName.replace('_cam', '');
+        }
         const base64Image = `data:image/jpeg;base64,${data.image}`;
         
         // Store image for camera switching
@@ -266,8 +278,8 @@ class RoverWebUI {
         const currentCamera = centerCamera.getAttribute('data-camera') || 'front';
         
         // Only update if this is the currently active camera
-        if ((cameraName === 'front_cam' && currentCamera === 'front') ||
-            (cameraName === 'back_cam' && currentCamera === 'back')) {
+        if ((cameraName === 'front' && currentCamera === 'front') ||
+            (cameraName === 'back' && currentCamera === 'back')) {
             
             const imgElement = document.getElementById('center-cam-img');
             const overlayElement = imgElement.nextElementSibling;
@@ -280,7 +292,7 @@ class RoverWebUI {
         }
         
         // Handle side cameras
-        if (cameraName === 'left_cam') {
+        if (cameraName === 'left') {
             const imgElement = document.getElementById('left-cam-img');
             const overlayElement = imgElement.nextElementSibling;
             
@@ -289,7 +301,7 @@ class RoverWebUI {
                 overlayElement.style.display = 'none';
                 imgElement.style.display = 'block';
             };
-        } else if (cameraName === 'right_cam') {
+        } else if (cameraName === 'right') {
             const imgElement = document.getElementById('right-cam-img');
             const overlayElement = imgElement.nextElementSibling;
             
