@@ -1,10 +1,10 @@
 {
 "topics": {
     "cameras": {
-    "front": "/panther/camera_front/image_raw/image",
-    "back": "/panther/camera_back/image_raw/image",
-    "left": "/panther/camera_left/image_raw/image",
-    "right": "/panther/camera_right/image_raw/image"
+    "front": "/panther/camera_front/image_raw",
+    "back": "/panther/camera_back/image_raw",
+    "left": "/panther/camera_left/image_raw",
+    "right": "/panther/camera_right/image_raw"
     },
     "sensors": {
     "imu": "/panther/imu/data",
