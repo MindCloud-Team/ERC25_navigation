@@ -233,11 +233,8 @@ class RoverWebUI {
     }
     
     updateEStopStatus(isPressed) {
-        console.log('🛑 E-Stop update called with:', isPressed, typeof isPressed);
-        
         const estopElement = document.getElementById('e-stop-status');
         if (!estopElement) {
-            console.error('❌ E-Stop element not found');
             return;
         }
         
@@ -249,8 +246,6 @@ class RoverWebUI {
             <span>E-STOP: ${pressed ? 'PRESSED' : 'OK'}</span>
         `;
         estopElement.style.color = pressed ? '#ff0000' : '#00ff00';
-        
-        console.log('🛑 E-Stop updated to:', pressed ? 'PRESSED' : 'OK');
     }
     
     updateOdometryData(data) {
@@ -264,9 +259,20 @@ class RoverWebUI {
     
     updateCameraData(data) {
         // Normalize camera name to keys: 'front','back','left','right'
-        let cameraName = data.camera || '';
+        let cameraName = (data.camera || '').toLowerCase();
         if (cameraName.endsWith('_cam')) {
             cameraName = cameraName.replace('_cam', '');
+        }
+        // Fallback normalization: detect based on substrings
+        if (!['front','back','left','right'].includes(cameraName)) {
+            if (cameraName.includes('front')) cameraName = 'front';
+            else if (cameraName.includes('back')) cameraName = 'back';
+            else if (cameraName.includes('left')) cameraName = 'left';
+            else if (cameraName.includes('right')) cameraName = 'right';
+        }
+        if (!['front','back','left','right'].includes(cameraName)) {
+            // Unknown camera label; ignore without error
+            return;
         }
         const base64Image = `data:image/jpeg;base64,${data.image}`;
         

@@ -24,7 +24,7 @@ from flask_socketio import SocketIO, emit
 import cv_bridge
 
 def get_package_share_path():
-    """Get the path to the package share directory"""
+    """Get the path to the web assets directory (www)."""
     try:
         from ament_index_python.packages import get_package_share_directory
         package_share = get_package_share_directory('web_ui')
@@ -38,9 +38,9 @@ def get_package_share_path():
     current_dir = os.path.dirname(os.path.abspath(__file__))
     www_path = os.path.join(current_dir, '..', 'www')
     if os.path.exists(www_path):
-        return os.path.join(current_dir, '..')
-    
-    return os.path.join(current_dir, '..')
+        return os.path.normpath(www_path)
+    # Fallback to package root if www not found
+    return os.path.normpath(os.path.join(current_dir, '..'))
 
 # Flask and SocketIO setup
 app = Flask(__name__)
@@ -93,23 +93,39 @@ class CustomROSNode(Node):
         self.broadcast_thread.start()
 
     def resolve_topics_path(self, config_value: str) -> str:
-        """Resolve the topics config file path, supporting absolute or path relative to www."""
+        """Resolve the topics config file path, supporting absolute path or various common relative roots."""
+        attempted_paths = []
         try:
+            # Absolute path directly
             if os.path.isabs(config_value) and os.path.exists(config_value):
                 return config_value
-            # Resolve relative to the www directory we serve
-            base_dir = get_package_share_path()
-            candidate = os.path.join(base_dir, config_value)
-            if os.path.exists(candidate):
-                return candidate
+
+            roots = []
+            # 1) Served www directory in install or devel space
+            roots.append(get_package_share_path())
+            # 2) Source-relative www directory
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            roots.append(os.path.normpath(os.path.join(current_dir, '..', 'www')))
+            # 3) Package root (in case user passed 'topics.json' without 'config/')
+            roots.append(os.path.normpath(os.path.join(current_dir, '..')))
+
+            for root in roots:
+                for rel in [config_value, os.path.join('config', config_value)]:
+                    candidate = os.path.join(root, rel)
+                    attempted_paths.append(candidate)
+                    if os.path.exists(candidate):
+                        return candidate
         except Exception:
             pass
-        # Fallback to default bundled file
+
+        # Fallback to default bundled file under www/config
         fallback = os.path.join(get_package_share_path(), 'config', 'topics.json')
+        attempted_paths.append(fallback)
+        self.get_logger().error(f"Could not find topics config. Tried: {attempted_paths}")
         return fallback
 
     def load_topics_config(self):
-        """Load topics config JSON into memory."""
+        """Load topics config JSON into memory; fallback to a built-in default if not found."""
         try:
             cfg_param = self.get_parameter('topics_config').get_parameter_value().string_value
             cfg_path = self.resolve_topics_path(cfg_param)
@@ -117,7 +133,42 @@ class CustomROSNode(Node):
                 return json.load(f)
         except Exception as exc:
             self.get_logger().error(f'Could not load topics config: {exc}')
-            return None
+            # Built-in safe defaults that match simulation topics structure
+            default_cfg = {
+                'topics': {
+                    'cameras': {
+                        'front': '/front_cam/zed_node/rgb/image_rect_color',
+                        'back': '/back_cam/zed_node/rgb/image_rect_color',
+                        'left': '/left_cam/zed_node/rgb/image_rect_color',
+                        'right': '/right_cam/zed_node/rgb/image_rect_color'
+                    },
+                    'sensors': {
+                        'imu': '/imu/data',
+                        'battery': '/battery/battery_status',
+                        'estop': '/hardware/e_stop',
+                        'odometry': '/odometry/filtered',
+                        'joy': '/joy'
+                    },
+                    'navigation': {
+                        'map': '/costmap',
+                        'cmd_vel': '/cmd_vel',
+                        'goal_pose': '/goal_pose'
+                    }
+                },
+                'message_types': {
+                    'cameras': 'sensor_msgs/msg/Image',
+                    'imu': 'sensor_msgs/msg/Imu',
+                    'battery': 'sensor_msgs/msg/BatteryState',
+                    'estop': 'std_msgs/msg/Bool',
+                    'odometry': 'nav_msgs/msg/Odometry',
+                    'joy': 'sensor_msgs/msg/Joy',
+                    'map': 'nav_msgs/msg/OccupancyGrid',
+                    'cmd_vel': 'geometry_msgs/msg/TwistStamped',
+                    'goal_pose': 'geometry_msgs/msg/PoseStamped'
+                }
+            }
+            self.get_logger().warn('Using built-in default topics configuration')
+            return default_cfg
 
     def setup_subscribers(self):
         """Setup all ROS2 subscribers"""
@@ -134,14 +185,19 @@ class CustomROSNode(Node):
         odom_topic = sensors.get('odometry', '/odometry/filtered')
 
         # Map subscriber
+        self.get_logger().info(f'Subscribing map -> {map_topic}')
         self.map_sub = self.create_subscription(OccupancyGrid, map_topic, self.map_callback, 10)
         # IMU subscriber
+        self.get_logger().info(f'Subscribing imu -> {imu_topic}')
         self.imu_sub = self.create_subscription(Imu, imu_topic, self.imu_callback, 10)
         # Battery subscriber
+        self.get_logger().info(f'Subscribing battery -> {battery_topic}')
         self.battery_sub = self.create_subscription(BatteryState, battery_topic, self.battery_callback, 10)
         # E-stop subscriber
+        self.get_logger().info(f'Subscribing estop -> {estop_topic}')
         self.estop_sub = self.create_subscription(Bool, estop_topic, self.estop_callback, 10)
         # Odometry subscriber
+        self.get_logger().info(f'Subscribing odometry -> {odom_topic}')
         self.odom_sub = self.create_subscription(Odometry, odom_topic, self.odometry_callback, 10)
 
         # Camera subscribers based on config
@@ -151,6 +207,7 @@ class CustomROSNode(Node):
             if label in cameras:
                 topic_template = cameras[label]
                 topic_resolved = topic_template.replace('${camera}', label)
+                self.get_logger().info(f'Subscribing camera {label} -> {topic_resolved}')
                 self.camera_subs[label] = self.create_subscription(
                     Image,
                     topic_resolved,
@@ -166,9 +223,11 @@ class CustomROSNode(Node):
         goal_pose_topic = navigation.get('goal_pose', '/goal_pose')
 
         # Command velocity publisher
+        self.get_logger().info(f'Publishing cmd_vel -> {cmd_vel_topic}')
         self.cmd_vel_pub = self.create_publisher(TwistStamped, cmd_vel_topic, 10)
         
         # Goal pose publisher
+        self.get_logger().info(f'Publishing goal_pose -> {goal_pose_topic}')
         self.goal_pose_pub = self.create_publisher(PoseStamped, goal_pose_topic, 10)
 
     def map_callback(self, msg):
@@ -278,8 +337,25 @@ class CustomROSNode(Node):
     def camera_callback(self, msg, camera_name):
         """Handle camera data"""
         try:
-            # Convert ROS image to OpenCV format
-            cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
+            # Convert ROS image to OpenCV BGR format with robust fallbacks
+            try:
+                cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
+            except Exception:
+                # Try native conversion first
+                cv_image = self.bridge.imgmsg_to_cv2(msg)
+                # Ensure BGR for JPEG
+                encoding = (msg.encoding or '').lower()
+                if len(cv_image.shape) == 2:
+                    cv_image = cv2.cvtColor(cv_image, cv2.COLOR_GRAY2BGR)
+                elif len(cv_image.shape) == 3 and cv_image.shape[2] == 3:
+                    if encoding.startswith('rgb'):
+                        cv_image = cv2.cvtColor(cv_image, cv2.COLOR_RGB2BGR)
+                    # if already bgr-like, keep as is
+                elif len(cv_image.shape) == 3 and cv_image.shape[2] == 4:
+                    if encoding.startswith('rgba'):
+                        cv_image = cv2.cvtColor(cv_image, cv2.COLOR_RGBA2BGR)
+                    elif encoding.startswith('bgra'):
+                        cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGRA2BGR)
             
             # Compress image to JPEG
             _, buffer = cv2.imencode('.jpg', cv_image, [cv2.IMWRITE_JPEG_QUALITY, 70])
